@@ -1,7 +1,7 @@
-import { Worker } from './Worker.js';
-import { Task } from './Task.js';
-import { Backlog } from './Backlog.js';
-import { ProductOwner } from './PO.js';
+import { Worker } from './worker.js';
+import { Task } from './task.js';
+import { Backlog } from './backlog.js';
+import { ProductOwner } from './po.js';
 
 /**
  * finalTeamAvgExpertise:
