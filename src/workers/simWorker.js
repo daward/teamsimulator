@@ -1,16 +1,12 @@
 // src/workers/simWorker.js
-import { runSimulation } from "../simulation/simulation.js"; // adjust if your path differs
+import { runSimulation } from "../simulation/simulation.js";
 import { presetGroups, applyPresetGroups } from "../presets.js";
-
-// If your simulation import path is different, change the line above.
-// This assumes you have something like /simulation/simulation.js exporting runSimulation.
 
 function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
 function applySinglePresetValue(baseConfig, selections, presetParam, presetId) {
-  // presetParam like "preset:businessEnv"
   const groupId = presetParam.slice("preset:".length);
   const group = presetGroups.find((g) => g.id === groupId);
   if (!group) return applyPresetGroups(baseConfig, selections);
@@ -18,39 +14,40 @@ function applySinglePresetValue(baseConfig, selections, presetParam, presetId) {
   const preset = group.presets.find((p) => p.id === presetId);
   if (!preset) return applyPresetGroups(baseConfig, selections);
 
-  // Apply: all currently selected presets, but override this group with presetId
   const nextSelections = { ...(selections || {}), [groupId]: presetId };
-
   return applyPresetGroups(baseConfig, nextSelections);
 }
 
 function makeConfigForPoint({ baseConfig, presetSelections, paramName, value }) {
-  // paramName can be real cfg key OR preset:groupId
   if (paramName.startsWith("preset:")) {
-    // value is preset id string
-    return applySinglePresetValue(baseConfig, presetSelections, paramName, String(value));
+    return applySinglePresetValue(
+      baseConfig,
+      presetSelections,
+      paramName,
+      String(value)
+    );
   }
 
-  // normal key
   const out = { ...baseConfig };
-  // parse numbers when possible
   const num = Number(value);
   out[paramName] = Number.isFinite(num) && String(value).trim() !== "" ? num : value;
   return out;
 }
 
 self.onmessage = async (evt) => {
-  const { type, payload } = evt.data || {};
+  const { type, payload, runId } = evt.data || {};
+
+  // Helper to always echo runId back (so UI can ignore stale responses)
+  const reply = (msg) => self.postMessage({ runId, ...msg });
 
   try {
     if (type === "runSingle") {
       const { config, presetSelections } = payload;
 
-      // Apply currently selected presets (single run should reflect them)
       const cfg = applyPresetGroups(config, presetSelections);
       const result = runSimulation(cfg);
 
-      self.postMessage({ type: "singleResult", payload: result });
+      reply({ type: "singleResult", payload: result });
       return;
     }
 
@@ -67,14 +64,13 @@ self.onmessage = async (evt) => {
         });
 
         const sim = runSimulation(cfg);
-        // store full stats, not a single metric
         results.push({
-          x: cfg[paramName] ?? v, // for normal keys, show the actual value; for preset, v is presetId
+          x: cfg[paramName] ?? v,
           stats: deepClone(sim.stats ?? {}),
         });
       }
 
-      self.postMessage({
+      reply({
         type: "sweep1DResult",
         payload: { paramName, results },
       });
@@ -95,7 +91,6 @@ self.onmessage = async (evt) => {
 
       for (const s of seriesValues) {
         for (const x of xValues) {
-          // Apply series param first, then x param (order only matters if both are preset groups)
           const cfgAfterSeries = makeConfigForPoint({
             baseConfig,
             presetSelections,
@@ -120,19 +115,19 @@ self.onmessage = async (evt) => {
         }
       }
 
-      self.postMessage({
+      reply({
         type: "sweep2DResult",
         payload: { xParam, seriesParam, results },
       });
       return;
     }
 
-    self.postMessage({
+    reply({
       type: "error",
       payload: `Unknown worker message type: ${type}`,
     });
   } catch (err) {
-    self.postMessage({
+    reply({
       type: "error",
       payload: err?.stack || err?.message || String(err),
     });

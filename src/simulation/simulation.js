@@ -1,10 +1,12 @@
-import { Worker } from './worker.js';
-import { Task } from './task.js';
-import { Backlog } from './backlog.js';
-import { ProductOwner } from './po.js';
+// simulation.js
+import { Worker } from './Worker.js';
+import { Task } from './Task.js';
+import { Backlog } from './Backlog.js';
+import { ProductOwner } from './PO.js';
+import { samplePoisson } from './utils.js';
 
 /**
- * finalTeamAvgExpertise:
+ * Compute finalTeamAvgExpertise as:
  * average over all (worker, topic) knowledge values, where missing topics count as 0.
  * Range: 0..1
  */
@@ -21,24 +23,22 @@ function computeFinalTeamAvgExpertise(workers, numTaskTypes) {
 }
 
 /**
- * finalTeamAvgMaxExpertisePerTopic:
- * for each topic, take max(worker knowledge), then average across topics.
+ * Compute finalTeamAvgMaxExpertisePerTopic as:
+ * for each topic, take max expertise across workers; then average those maxima.
  * Range: 0..1
  */
 function computeFinalTeamAvgMaxExpertisePerTopic(workers, numTaskTypes) {
   if (!workers?.length || !numTaskTypes) return 0;
 
   let sumMax = 0;
-
   for (let topic = 0; topic < numTaskTypes; topic++) {
-    let maxK = 0;
+    let best = 0;
     for (const w of workers) {
       const k = w.getKnowledge ? w.getKnowledge(topic) : (w.knowledge?.[topic] ?? 0);
-      if (k > maxK) maxK = k;
+      if (k > best) best = k;
     }
-    sumMax += maxK;
+    sumMax += best;
   }
-
   return sumMax / numTaskTypes;
 }
 
@@ -59,7 +59,8 @@ function stddev(arr) {
 }
 
 /**
- * One independent run (pure relative to cfg; we don't mutate cfg).
+ * One independent run.
+ * NOTE: This is intentionally "pure" relative to cfg (we don't mutate cfg).
  */
 function runSingleSimulation(cfg) {
   // ------------------------------------------------------------
@@ -114,7 +115,7 @@ function runSingleSimulation(cfg) {
     averageCumulativeValuePerCycle: 0,
     averageCumulativeValuePerCyclePerWorker: 0,
 
-    // scalar expertise metrics (0..1)
+    // Expertise summary scalars (0..1)
     finalTeamAvgExpertise: 0,
     finalTeamAvgMaxExpertisePerTopic: 0
   };
@@ -127,9 +128,11 @@ function runSingleSimulation(cfg) {
 
   for (let cycle = 0; cycle < cfg.numCycles; cycle++) {
     // --------------------------------------------------------
-    // 1. ENVIRONMENTAL TASK ARRIVAL (constrained)
+    // 1. ENVIRONMENTAL TASK ARRIVAL (Poisson)
     // --------------------------------------------------------
-    const taskArrivalCount = Math.floor(cfg.envTaskRate);
+    const lambda = cfg.envTaskRate ?? 0;
+    const taskArrivalCount = samplePoisson(lambda);
+
     for (let i = 0; i < taskArrivalCount; i++) {
       backlog.addTask(Task.random(cfg));
       stats.totalTasksArrived++;
@@ -147,7 +150,7 @@ function runSingleSimulation(cfg) {
     // --------------------------------------------------------
     // 2. PRODUCT OWNER SORTING
     // --------------------------------------------------------
-    const poAbsent = Math.random() < cfg.poAbsenceProb;
+    const poAbsent = Math.random() < (cfg.poAbsenceProb ?? 0);
     if (!poAbsent) {
       po.work(cycle, backlog, cfg);
     }
@@ -156,7 +159,7 @@ function runSingleSimulation(cfg) {
     // 3. WORKER ABSENCES
     // --------------------------------------------------------
     for (const w of workers) {
-      w.isAbsent = Math.random() < cfg.absenceProb;
+      w.isAbsent = Math.random() < (cfg.absenceProb ?? 0);
     }
 
     // --------------------------------------------------------
@@ -167,9 +170,7 @@ function runSingleSimulation(cfg) {
 
       if (!w.currentTask) {
         const t = backlog.takeTask();
-        if (t) {
-          w.assignTask(t);
-        }
+        if (t) w.assignTask(t);
       }
     }
 
@@ -191,7 +192,8 @@ function runSingleSimulation(cfg) {
       if (w.phase === "info") {
         stats.totalInfoCycles++;
 
-        // Belief-driven ask decision
+        // Worker decides whether to ask AND who to ask based on beliefs + askProb + askMinGain.
+        // shouldAskForHelp returns: { shouldAsk, helper, bestGap }
         let decision = { shouldAsk: false, helper: null, bestGap: 0 };
 
         if (typeof w.shouldAskForHelp === "function") {
@@ -262,9 +264,7 @@ function runSingleSimulation(cfg) {
     // 6. APPLY PER-WORKER DECAY
     // --------------------------------------------------------
     for (const w of workers) {
-      if (!w.isAbsent) {
-        w.applyDecay();
-      }
+      if (!w.isAbsent) w.applyDecay();
     }
 
     // --------------------------------------------------------
@@ -285,8 +285,7 @@ function runSingleSimulation(cfg) {
     stats.averageCumulativeValuePerCycle / cfg.numWorkers;
 
   stats.finalTeamAvgExpertise = computeFinalTeamAvgExpertise(workers, cfg.numTaskTypes);
-  stats.finalTeamAvgMaxExpertisePerTopic =
-    computeFinalTeamAvgMaxExpertisePerTopic(workers, cfg.numTaskTypes);
+  stats.finalTeamAvgMaxExpertisePerTopic = computeFinalTeamAvgMaxExpertisePerTopic(workers, cfg.numTaskTypes);
 
   return { stats, workers };
 }
@@ -310,8 +309,8 @@ export function runSimulation(cfg) {
     const run = runSingleSimulation(cfg);
     perRepStats.push(run.stats);
 
-    // keep only one sample run (last) to avoid huge payloads
     if (r === reps - 1) {
+      // keep only one sample run (last) to avoid huge payloads
       sample = { stats: run.stats, workers: run.workers };
     }
   }
@@ -329,10 +328,12 @@ export function runSimulation(cfg) {
     aggregate[`${k}StdDev`] = stddev(values);
   }
 
+  // Helpful meta
   aggregate.replicates = reps;
 
   return {
     stats: aggregate,
+    // keep one representative run so UI/debug can still see worker state
     sample,
     cfg
   };
