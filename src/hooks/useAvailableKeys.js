@@ -2,76 +2,134 @@
 import { useEffect, useMemo } from "react";
 
 /**
- * Computes:
- * - availableParams (config keys + preset groups)
- * - availableMetricKeys (numeric keys across sweep stats)
- * - metricSpec (single/ratio)
- * Also keeps chosen metric keys valid when sweep results change.
+ * Produces:
+ * - availableParams: config keys + preset:* group ids (for sweeps)
+ * - availableMetricKeys: union of numeric keys found in stats across results
+ * - metricSpec: the current metric selection spec used by charts
+ *
+ * IMPORTANT:
+ * We do NOT require a rerun to change metric. We just pick a different key
+ * from the already-returned stats objects.
  */
+
+function safeJsonParse(text) {
+  try {
+    const obj = JSON.parse(text);
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+function addStatKeysFromStatsObject(outSet, stats) {
+  if (!stats || typeof stats !== "object") return;
+  for (const [k, v] of Object.entries(stats)) {
+    // only show numeric fields (including 0)
+    if (typeof v === "number" && Number.isFinite(v)) outSet.add(k);
+  }
+}
+
+function addStatKeysFromSweep1D(outSet, sweep1DResult) {
+  const rows = sweep1DResult?.results;
+  if (!Array.isArray(rows)) return;
+  for (const r of rows) addStatKeysFromStatsObject(outSet, r?.stats);
+}
+
+function addStatKeysFromSweep2D(outSet, sweep2DResult) {
+  const rows = sweep2DResult?.results;
+  if (!Array.isArray(rows)) return;
+  for (const r of rows) addStatKeysFromStatsObject(outSet, r?.stats);
+}
+
+function addStatKeysFromScatter(outSet, scatterResult) {
+  const pts = scatterResult?.points;
+  if (!Array.isArray(pts)) return;
+  for (const p of pts) addStatKeysFromStatsObject(outSet, p?.stats);
+}
+
 export function useAvailableKeys({
-  mode,
+  // state/context
   configText,
   presetGroups,
+
+  // results (any/all may be null)
+  result,
   sweep1DResult,
   sweep2DResult,
+  scatterResult,
 
+  // metric selection state for sweeps (shared)
   metricMode,
   metricKey,
   ratioNumeratorKey,
   ratioDenominatorKey,
+
+  // setters so we can keep selection valid
   setMetricKey,
   setRatioNumeratorKey,
   setRatioDenominatorKey,
 }) {
+  const cfgObj = useMemo(() => safeJsonParse(configText), [configText]);
+
   const availableParams = useMemo(() => {
-    try {
-      const parsed = JSON.parse(configText);
-      const configKeys = Object.keys(parsed || {});
-      const presetKeys = presetGroups.map((g) => `preset:${g.id}`);
-      return Array.from(new Set([...configKeys, ...presetKeys])).sort();
-    } catch {
-      return presetGroups.map((g) => `preset:${g.id}`).sort();
+    const keys = new Set(Object.keys(cfgObj || {}));
+
+    // Allow sweeping presets: preset:<groupId>
+    for (const g of presetGroups || []) {
+      if (g?.id) keys.add(`preset:${g.id}`);
     }
-  }, [configText, presetGroups]);
+
+    return Array.from(keys).sort();
+  }, [cfgObj, presetGroups]);
 
   const availableMetricKeys = useMemo(() => {
-    const statsList =
-      mode === "sweep1D"
-        ? (sweep1DResult?.results || []).map((r) => r.stats).filter(Boolean)
-        : mode === "sweep2D"
-        ? (sweep2DResult?.results || []).map((r) => r.stats).filter(Boolean)
-        : [];
-
-    if (statsList.length === 0) return [];
-
     const keys = new Set();
-    for (const s of statsList) {
-      for (const k of Object.keys(s)) {
-        const v = s[k];
-        if (typeof v === "number" && Number.isFinite(v)) keys.add(k);
-      }
+
+    // Single-run stats
+    addStatKeysFromStatsObject(keys, result?.stats);
+
+    // Sweep stats
+    addStatKeysFromSweep1D(keys, sweep1DResult);
+    addStatKeysFromSweep2D(keys, sweep2DResult);
+
+    // Scatter stats
+    addStatKeysFromScatter(keys, scatterResult);
+
+    // Provide a couple of common fallbacks if nothing yet
+    if (keys.size === 0) {
+      keys.add("totalValue");
+      keys.add("totalTasksCompleted");
     }
+
     return Array.from(keys).sort();
-  }, [mode, sweep1DResult, sweep2DResult]);
+  }, [result, sweep1DResult, sweep2DResult, scatterResult]);
 
-  // Keep chosen keys valid as soon as metrics are known
+  // Keep current selection valid when the key list changes
   useEffect(() => {
-    if (availableMetricKeys.length === 0) return;
+    if (!availableMetricKeys.length) return;
 
-    if (!availableMetricKeys.includes(metricKey)) {
-      setMetricKey(availableMetricKeys[0]);
+    if (metricMode === "single") {
+      if (!availableMetricKeys.includes(metricKey)) {
+        setMetricKey(availableMetricKeys[0]);
+      }
+      return;
     }
+
+    // ratio
     if (!availableMetricKeys.includes(ratioNumeratorKey)) {
       setRatioNumeratorKey(availableMetricKeys[0]);
     }
+    // denominator can be from stats too; keep it valid as well
     if (!availableMetricKeys.includes(ratioDenominatorKey)) {
-      const alt =
+      // pick something non-zero-ish if possible
+      const candidate =
         availableMetricKeys.find((k) => k !== ratioNumeratorKey) ||
         availableMetricKeys[0];
-      setRatioDenominatorKey(alt);
+      setRatioDenominatorKey(candidate);
     }
   }, [
     availableMetricKeys,
+    metricMode,
     metricKey,
     ratioNumeratorKey,
     ratioDenominatorKey,
@@ -81,13 +139,19 @@ export function useAvailableKeys({
   ]);
 
   const metricSpec = useMemo(() => {
-    if (metricMode === "single") return { mode: "single", key: metricKey };
-    return {
-      mode: "ratio",
-      numeratorKey: ratioNumeratorKey,
-      denominatorKey: ratioDenominatorKey,
-    };
+    if (metricMode === "ratio") {
+      return {
+        mode: "ratio",
+        numeratorKey: ratioNumeratorKey,
+        denominatorKey: ratioDenominatorKey,
+      };
+    }
+    return { mode: "single", key: metricKey };
   }, [metricMode, metricKey, ratioNumeratorKey, ratioDenominatorKey]);
 
-  return { availableParams, availableMetricKeys, metricSpec };
+  return {
+    availableParams,
+    availableMetricKeys,
+    metricSpec,
+  };
 }

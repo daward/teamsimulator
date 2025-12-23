@@ -9,8 +9,6 @@ function createWorker() {
 
 export function useSimulation() {
   const workerRef = useRef(null);
-  const runIdRef = useRef(0);
-  const timeoutRef = useRef(null);
 
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
@@ -18,13 +16,8 @@ export function useSimulation() {
   const [result, setResult] = useState(null);
   const [sweep1DResult, setSweep1DResult] = useState(null);
   const [sweep2DResult, setSweep2DResult] = useState(null);
-
-  const clearWatchdog = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
+  const [scatterResult, setScatterResult] = useState(null);
+  const [scatterProgress, setScatterProgress] = useState(null);
 
   const ensureWorker = useCallback(() => {
     if (workerRef.current) return workerRef.current;
@@ -35,15 +28,9 @@ export function useSimulation() {
       const msg = evt?.data;
       if (!msg || typeof msg !== "object") return;
 
-      // Ignore stale responses (critical for refresh/autorun + StrictMode)
-      if (typeof msg.runId === "number" && msg.runId !== runIdRef.current) {
-        return;
-      }
-
-      clearWatchdog();
-
       if (msg.type === "error") {
         setError(typeof msg.payload === "string" ? msg.payload : "Worker error");
+        setScatterProgress(null);
         setRunning(false);
         return;
       }
@@ -66,19 +53,29 @@ export function useSimulation() {
         return;
       }
 
-      // Unknown message => fail closed
+      if (msg.type === "scatterResult") {
+        setScatterResult(msg.payload);
+        setScatterProgress(null);
+        setRunning(false);
+        return;
+      }
+
+      if (msg.type === "scatterProgress") {
+        setScatterProgress(msg.payload || null);
+        return;
+      }
+
       setError(`Unknown worker response type: ${String(msg.type)}`);
       setRunning(false);
     };
 
     w.onerror = (e) => {
-      clearWatchdog();
-      setError(
+      const message =
         e?.message ||
-          "Worker crashed/failed to load. Check console for simWorker.js errors."
-      );
+        "Worker failed (check src/workers/simWorker.js path and runtime errors).";
+      setError(message);
+      setScatterProgress(null);
       setRunning(false);
-
       try {
         w.terminate();
       } catch {}
@@ -86,10 +83,9 @@ export function useSimulation() {
     };
 
     w.onmessageerror = () => {
-      clearWatchdog();
-      setError("Worker message error (payload could not be cloned/deserialized).");
+      setError("Worker message error (failed to deserialize payload).");
+      setScatterProgress(null);
       setRunning(false);
-
       try {
         w.terminate();
       } catch {}
@@ -102,7 +98,6 @@ export function useSimulation() {
 
   useEffect(() => {
     return () => {
-      clearWatchdog();
       if (workerRef.current) {
         try {
           workerRef.current.terminate();
@@ -113,36 +108,17 @@ export function useSimulation() {
   }, []);
 
   const post = useCallback(
-    (type, payload, { timeoutMs = 60000 } = {}) => {
+    (type, payload) => {
       setError(null);
       setRunning(true);
-
-      runIdRef.current += 1;
-      const runId = runIdRef.current;
+      setScatterProgress(null);
 
       const w = ensureWorker();
-
-      // Watchdog: never allow "running forever" silently
-      clearWatchdog();
-      timeoutRef.current = setTimeout(() => {
-        setError(
-          `Worker timed out after ${Math.round(timeoutMs / 1000)}s (no response).`
-        );
-        setRunning(false);
-
-        try {
-          w.terminate();
-        } catch {}
-        workerRef.current = null;
-      }, timeoutMs);
-
       try {
-        w.postMessage({ type, payload, runId });
+        w.postMessage({ type, payload });
       } catch (err) {
-        clearWatchdog();
         setError(err?.message || String(err));
         setRunning(false);
-
         try {
           w.terminate();
         } catch {}
@@ -154,21 +130,29 @@ export function useSimulation() {
 
   const runSingle = useCallback(
     (config, presetSelections) => {
-      post("runSingle", { config, presetSelections }, { timeoutMs: 60000 });
+      post("runSingle", { config, presetSelections });
     },
     [post]
   );
 
   const runSweep1D = useCallback(
     (req) => {
-      post("runSweep1D", req, { timeoutMs: 120000 });
+      post("runSweep1D", req);
     },
     [post]
   );
 
   const runSweep2D = useCallback(
     (req) => {
-      post("runSweep2D", req, { timeoutMs: 180000 });
+      post("runSweep2D", req);
+    },
+    [post]
+  );
+
+  const runScatter = useCallback(
+    (req) => {
+      // req: { baseConfig, presetSelections, nOverride?, xMetricSpec, yMetricSpec }
+      post("runScatter", req);
     },
     [post]
   );
@@ -180,9 +164,12 @@ export function useSimulation() {
     result,
     sweep1DResult,
     sweep2DResult,
+    scatterResult,
+    scatterProgress,
 
     runSingle,
     runSweep1D,
     runSweep2D,
+    runScatter,
   };
 }

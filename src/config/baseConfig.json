@@ -27,9 +27,8 @@
 
   "envTaskRate": 2,
 
-  "knowledgeDecayRate": 0.05,
-  "researchLearningRate": 0.02,
-  "implLearningRate": 0.1,
+  "knowledgeDecayRate": 0.03,
+  "completionLearningRate": 0.15,
 
   "conversationLearningRate": 0.1,
   "beliefUpdateRate": 0.2,

@@ -254,24 +254,14 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
               help="How fast unused knowledge weakens per cycle."
             />
             <NumberField
-              label="Research learning rate"
-              field="researchLearningRate"
-              value={cfg.researchLearningRate}
+              label="Completion learning rate"
+              field="completionLearningRate"
+              value={cfg.completionLearningRate}
               onChange={updateField}
               min={0}
               max={1}
               step={0.01}
-              help="How much info work improves knowledge."
-            />
-            <NumberField
-              label="Implementation learning rate"
-              field="implLearningRate"
-              value={cfg.implLearningRate}
-              onChange={updateField}
-              min={0}
-              max={1}
-              step={0.01}
-              help="How much implementation work improves knowledge."
+              help="How much knowledge improves when a task finishes."
             />
             <NumberField
               label="Conversation learning rate"

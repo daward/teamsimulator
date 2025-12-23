@@ -48,26 +48,6 @@ export class Worker {
     this.knowledge[topic] = clamped;
   }
 
-  // Solo research learning: E' = E + r * (1 - E)
-  researchTopic(topic) {
-    const rate = this.cfg.researchLearningRate ?? 0.05;
-    if (rate <= 0) return;
-
-    const current = this.getKnowledge(topic);
-    const delta = rate * (1 - current);
-    this.setKnowledge(topic, current + delta);
-  }
-
-  // Implementation learning: E' = E + r * (1 - E)
-  implLearnTopic(topic) {
-    const rate = this.cfg.implLearningRate ?? 0.02;
-    if (rate <= 0) return;
-
-    const current = this.getKnowledge(topic);
-    const delta = rate * (1 - current);
-    this.setKnowledge(topic, current + delta);
-  }
-
   // Conversation learning:
   // U = 1 - (1-A)(1-B)
   // A' = A + c(U - A); B' = B + c(U - B)
@@ -231,8 +211,6 @@ export class Worker {
     const topic = this.currentTask.type;
     this.touchedTopicThisCycle = topic;
 
-    this.researchTopic(topic);
-
     const expertise = this.getKnowledge(topic);
     const remaining = this.remainingInfo;
 
@@ -256,14 +234,16 @@ export class Worker {
     this.touchedTopicThisCycle = topic;
     helper.touchedTopicThisCycle = topic;
 
+    // Conversation learning updates both workers now.
     this.converseWith(helper, topic);
 
     // Update beliefs both ways (never allows self due to guard in updateBelief)
     this.updateBelief(topic, helper.id, helper.getKnowledge(topic));
     helper.updateBelief(topic, this.id, this.getKnowledge(topic));
 
-    const expertise = this.getKnowledge(topic);
     const remaining = this.remainingInfo;
+
+    const expertise = this.getKnowledge(topic);
 
     let reduction = Math.max(1, Math.round(expertise * remaining));
     reduction = Math.min(reduction, remaining);
@@ -282,9 +262,29 @@ export class Worker {
     const topic = this.currentTask.type;
     this.touchedTopicThisCycle = topic;
 
-    this.implLearnTopic(topic);
-
     this.remainingImpl -= 1;
     if (this.remainingImpl <= 0) this.remainingImpl = 0;
+  }
+
+  learnOnTaskCompletion(task) {
+    if (!task) return;
+    const topic = task.type;
+
+    const infoUnits = task.initialInfoTime ?? task.infoTime ?? 0;
+    const implUnits = task.initialImplTime ?? task.implTime ?? 0;
+    const effort = Math.max(1, infoUnits + implUnits);
+
+    const decay = this.cfg.knowledgeDecayRate ?? 0;
+    const fallbackRate = Math.max(0.15, 4 * decay);
+    const baseRate = this.cfg.completionLearningRate ?? fallbackRate;
+
+    // Scale by effort with a stronger boost; still sublinear and capped.
+    const effectiveRate = Math.min(0.95, baseRate * (1 + 2 * Math.log1p(effort)));
+
+    if (effectiveRate <= 0) return;
+
+    const current = this.getKnowledge(topic);
+    const delta = effectiveRate * (1 - current);
+    this.setKnowledge(topic, current + delta);
   }
 }

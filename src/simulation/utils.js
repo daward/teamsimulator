@@ -1,6 +1,23 @@
 // src/utils.js
 
-// In-place Fisher–Yates shuffle
+// Averages and variance helpers
+export function mean(arr) {
+  if (!arr?.length) return 0;
+  let s = 0;
+  for (const x of arr) s += x;
+  return s / arr.length;
+}
+
+export function stddev(arr) {
+  if (!arr || arr.length < 2) return 0;
+  const m = mean(arr);
+  let v = 0;
+  for (const x of arr) v += (x - m) * (x - m);
+  v /= arr.length - 1; // sample stddev
+  return Math.sqrt(v);
+}
+
+// In-place Fisher-Yates shuffle
 export function shuffleInPlace(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

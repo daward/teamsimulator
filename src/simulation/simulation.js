@@ -1,67 +1,62 @@
-// simulation.js
-import { Worker } from './worker.js';
-import { Task } from './task.js';
-import { Backlog } from './backlog.js';
-import { ProductOwner } from './po.js';
-import { samplePoisson } from './utils.js';
+// src/simulation.js
+import { Worker } from "./Worker.js";
+import { Task } from "./Task.js";
+import { Backlog } from "./Backlog.js";
+import { ProductOwner } from "./PO.js";
+import { samplePoisson, shuffleInPlace, mean, stddev } from "./utils.js";
+import {
+  computeFinalTeamAvgExpertise,
+  computeFinalTeamAvgMaxExpertisePerTopic
+} from "./metrics.js";
 
-/**
- * Compute finalTeamAvgExpertise as:
- * average over all (worker, topic) knowledge values, where missing topics count as 0.
- * Range: 0..1
- */
-function computeFinalTeamAvgExpertise(workers, numTaskTypes) {
-  if (!workers?.length || !numTaskTypes) return 0;
-
-  let sum = 0;
-  for (const w of workers) {
-    for (let topic = 0; topic < numTaskTypes; topic++) {
-      sum += w.getKnowledge ? w.getKnowledge(topic) : (w.knowledge?.[topic] ?? 0);
-    }
-  }
-  return sum / (workers.length * numTaskTypes);
-}
-
-/**
- * Compute finalTeamAvgMaxExpertisePerTopic as:
- * for each topic, take max expertise across workers; then average those maxima.
- * Range: 0..1
- */
-function computeFinalTeamAvgMaxExpertisePerTopic(workers, numTaskTypes) {
-  if (!workers?.length || !numTaskTypes) return 0;
-
-  let sumMax = 0;
-  for (let topic = 0; topic < numTaskTypes; topic++) {
-    let best = 0;
-    for (const w of workers) {
-      const k = w.getKnowledge ? w.getKnowledge(topic) : (w.knowledge?.[topic] ?? 0);
-      if (k > best) best = k;
-    }
-    sumMax += best;
-  }
-  return sumMax / numTaskTypes;
-}
-
-function mean(arr) {
-  if (!arr.length) return 0;
-  let s = 0;
-  for (const x of arr) s += x;
-  return s / arr.length;
-}
-
-function stddev(arr) {
-  if (arr.length < 2) return 0;
-  const m = mean(arr);
-  let v = 0;
-  for (const x of arr) v += (x - m) * (x - m);
-  v /= (arr.length - 1); // sample stddev
-  return Math.sqrt(v);
-}
 
 /**
  * One independent run.
- * NOTE: This is intentionally "pure" relative to cfg (we don't mutate cfg).
+ * NOTE: Intentionally "pure" relative to cfg (we don't mutate cfg).
  */
+function makeInitialStats() {
+  return {
+    totalValue: 0,
+    totalTasksCompleted: 0,
+
+    totalInfoCycles: 0,
+    totalImplCycles: 0,
+    totalConversationCycles: 0,
+
+    totalAskAttempts: 0,
+    askWithHelper: 0,
+    askWithoutHelper: 0,
+    successfulConversations: 0,
+    failedConversations: 0,
+
+    evictedTasks: 0,
+    evictedValue: 0,
+    totalTasksArrived: 0,
+
+    cumulativeRecurringValue: 0,
+    currentCycleCompletedValue: 0,
+    completedTasksThisCycle: [],
+
+    teamProductivity: 0,
+    workerProductivity: 0,
+
+    // final expertise scalars (0..1)
+    finalTeamAvgExpertise: 0,
+    finalTeamAvgMaxExpertisePerTopic: 0
+  };
+}
+
+function finalizeStats(stats, workers, cfg) {
+  stats.teamProductivity = stats.cumulativeRecurringValue / cfg.numCycles;
+  stats.workerProductivity = stats.teamProductivity / cfg.numWorkers;
+
+  stats.finalTeamAvgExpertise = computeFinalTeamAvgExpertise(workers, cfg.numTaskTypes);
+  stats.finalTeamAvgMaxExpertisePerTopic = computeFinalTeamAvgMaxExpertisePerTopic(
+    workers,
+    cfg.numTaskTypes
+  );
+}
+
 function runSingleSimulation(cfg) {
   // ------------------------------------------------------------
   // INITIALIZATION
@@ -90,35 +85,7 @@ function runSingleSimulation(cfg) {
   // Product Owner
   const po = new ProductOwner(cfg);
 
-  const stats = {
-    totalValue: 0,
-    totalTasksCompleted: 0,
-
-    totalInfoCycles: 0,
-    totalImplCycles: 0,
-    totalConversationCycles: 0,
-
-    totalAskAttempts: 0,
-    askWithHelper: 0,
-    askWithoutHelper: 0,
-    successfulConversations: 0,
-    failedConversations: 0,
-
-    evictedTasks: 0,
-    evictedValue: 0,
-    totalTasksArrived: 0,
-
-    cumulativeRecurringValue: 0,
-    currentCycleCompletedValue: 0,
-    completedTasksThisCycle: [],
-
-    averageCumulativeValuePerCycle: 0,
-    averageCumulativeValuePerCyclePerWorker: 0,
-
-    // Expertise summary scalars (0..1)
-    finalTeamAvgExpertise: 0,
-    finalTeamAvgMaxExpertisePerTopic: 0
-  };
+  const stats = makeInitialStats();
 
   const burnInCycles = cfg.burnInCycles ?? 0;
 
@@ -130,10 +97,8 @@ function runSingleSimulation(cfg) {
     // --------------------------------------------------------
     // 1. ENVIRONMENTAL TASK ARRIVAL (Poisson)
     // --------------------------------------------------------
-    const lambda = cfg.envTaskRate ?? 0;
-    const taskArrivalCount = samplePoisson(lambda);
-
-    for (let i = 0; i < taskArrivalCount; i++) {
+    const arrivals = samplePoisson(cfg.envTaskRate ?? 0);
+    for (let i = 0; i < arrivals; i++) {
       backlog.addTask(Task.random(cfg));
       stats.totalTasksArrived++;
     }
@@ -175,14 +140,31 @@ function runSingleSimulation(cfg) {
     }
 
     // --------------------------------------------------------
-    // 5. WORKER ACTIONS
+    // 5. WORKER ACTIONS (with conversation cost!)
     // --------------------------------------------------------
     stats.currentCycleCompletedValue = 0;
     stats.completedTasksThisCycle = [];
 
-    for (const w of workers) {
+    // NEW: randomize order each cycle so "helper loses cycle" isn't biased
+    const order = workers.slice();
+    shuffleInPlace(order);
+
+    // NEW: track who has already acted or is "busy helping" this cycle
+    const actedThisCycle = new Set();
+    const busyThisCycle = new Set(); // includes helpers that must skip their own action
+
+    for (const w of order) {
       if (w.isAbsent) continue;
       if (!w.currentTask) continue;
+
+      // If this worker is marked busy (they helped someone), they lose their cycle.
+      if (busyThisCycle.has(w.id)) {
+        actedThisCycle.add(w.id);
+        continue;
+      }
+
+      // Also guard against double-processing
+      if (actedThisCycle.has(w.id)) continue;
 
       const topic = w.currentTask.type;
 
@@ -192,14 +174,12 @@ function runSingleSimulation(cfg) {
       if (w.phase === "info") {
         stats.totalInfoCycles++;
 
-        // Worker decides whether to ask AND who to ask based on beliefs + askProb + askMinGain.
-        // shouldAskForHelp returns: { shouldAsk, helper, bestGap }
+        // Decide whether to ask and who to ask
         let decision = { shouldAsk: false, helper: null, bestGap: 0 };
 
         if (typeof w.shouldAskForHelp === "function") {
           decision = w.shouldAskForHelp(topic, workers);
         } else {
-          // Fallback: old behavior
           decision.shouldAsk = Math.random() < (cfg.askProb ?? 0);
           decision.helper =
             typeof w.chooseExpertForTopic === "function"
@@ -212,23 +192,44 @@ function runSingleSimulation(cfg) {
 
           const helper = decision.helper;
 
-          // helper must be present AND currently has a task
-          if (helper && !helper.isAbsent && helper.currentTask) {
+          // Helper must be:
+          // - present
+          // - has a task
+          // - not already acted this cycle
+          // - not already busy helping someone else
+          const helperOk =
+            helper &&
+            !helper.isAbsent &&
+            helper.currentTask &&
+            !actedThisCycle.has(helper.id) &&
+            !busyThisCycle.has(helper.id);
+
+          if (helperOk) {
+            // successful conversation
             stats.successfulConversations++;
             stats.totalConversationCycles++;
             stats.askWithHelper++;
 
+            // Conversation happens: asker acts, helper becomes busy and loses their cycle.
             w.workInfoWithHelper(helper);
+
+            // COST: helper loses their cycle this round
+            busyThisCycle.add(helper.id);
           } else {
+            // attempted but no helper
             stats.failedConversations++;
             stats.askWithoutHelper++;
 
+            // Ask attempt doesn't cost a cycle beyond the asker's normal action;
+            // the cost model you asked for is "both workers lose a cycle when convo occurs".
             w.workInfoSolo();
           }
         } else {
+          // no ask attempt
           w.workInfoSolo();
         }
 
+        actedThisCycle.add(w.id);
         continue;
       }
 
@@ -246,16 +247,19 @@ function runSingleSimulation(cfg) {
           stats.totalTasksCompleted++;
           stats.currentCycleCompletedValue += t.value;
 
+          // Apply consolidated learning at task completion.
+          w.learnOnTaskCompletion(t);
+
           if (cycle >= burnInCycles) {
             const recurring = t.value * t.valueRetention;
             stats.cumulativeRecurringValue += recurring;
           }
 
           stats.completedTasksThisCycle.push(t);
-
           w.clearTask();
         }
 
+        actedThisCycle.add(w.id);
         continue;
       }
     }
@@ -278,14 +282,7 @@ function runSingleSimulation(cfg) {
   // ------------------------------------------------------------
   // FINAL CALCULATIONS
   // ------------------------------------------------------------
-  stats.averageCumulativeValuePerCycle =
-    stats.cumulativeRecurringValue / cfg.numCycles;
-
-  stats.averageCumulativeValuePerCyclePerWorker =
-    stats.averageCumulativeValuePerCycle / cfg.numWorkers;
-
-  stats.finalTeamAvgExpertise = computeFinalTeamAvgExpertise(workers, cfg.numTaskTypes);
-  stats.finalTeamAvgMaxExpertisePerTopic = computeFinalTeamAvgMaxExpertisePerTopic(workers, cfg.numTaskTypes);
+  finalizeStats(stats, workers, cfg);
 
   return { stats, workers };
 }
@@ -295,7 +292,7 @@ function runSingleSimulation(cfg) {
  * If cfg.replicates > 1, returns aggregate stats (mean + stddev) and one sample run.
  */
 export function runSimulation(cfg) {
-  const reps = Math.max(1, Math.floor(cfg.replicates ?? 1));
+  const reps = Math.max(1, Math.floor(cfg.replicates ?? 20));
 
   if (reps === 1) {
     const { stats, workers } = runSingleSimulation(cfg);
@@ -328,13 +325,13 @@ export function runSimulation(cfg) {
     aggregate[`${k}StdDev`] = stddev(values);
   }
 
-  // Helpful meta
   aggregate.replicates = reps;
 
   return {
     stats: aggregate,
-    // keep one representative run so UI/debug can still see worker state
     sample,
     cfg
   };
 }
+
+export default runSimulation;
