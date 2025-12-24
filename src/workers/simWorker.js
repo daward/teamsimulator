@@ -64,6 +64,10 @@ function buildCfgSnapshot(cfg, unitMappings) {
     "poActionsPerCycle",
     "maxBacklogSize",
     "backlogSize",
+    "askMinGain",
+    "askProb",
+    "completionLearningRate",
+    "conversationLearningRate",
   ];
   for (const k of extras) {
     const v = cfg?.[k];
@@ -122,6 +126,15 @@ self.onmessage = async (evt) => {
       } = payload;
 
       const results = [];
+      const total = (seriesValues?.length || 0) * (xValues?.length || 0);
+      let done = 0;
+
+      if (total > 0) {
+        self.postMessage({
+          type: "sweep2DProgress",
+          payload: { done, total },
+        });
+      }
 
       for (const s of seriesValues) {
         for (const x of xValues) {
@@ -146,6 +159,14 @@ self.onmessage = async (evt) => {
             series: cfg[seriesParam] ?? s,
             stats: deepClone(sim.stats ?? {}),
           });
+
+          done += 1;
+          if (total > 0) {
+            self.postMessage({
+              type: "sweep2DProgress",
+              payload: { done, total },
+            });
+          }
         }
       }
 

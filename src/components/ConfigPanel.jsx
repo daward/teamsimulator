@@ -104,14 +104,7 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
       {cfg && (
         <>
           {/* BUSINESS ENVIRONMENT */}
-          <fieldset
-            style={{
-              border: "1px solid #ddd",
-              padding: 8,
-              borderRadius: 4,
-              marginBottom: 8,
-            }}
-          >
+          <fieldset className="form-panel">
             <legend style={{ fontSize: 12, fontWeight: "bold" }}>
               Business environment (demand &amp; value)
             </legend>
@@ -175,14 +168,7 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
           </fieldset>
 
           {/* DEVELOPERS / TEAM */}
-          <fieldset
-            style={{
-              border: "1px solid #ddd",
-              padding: 8,
-              borderRadius: 4,
-              marginBottom: 8,
-            }}
-          >
+          <fieldset className="form-panel">
             <legend style={{ fontSize: 12, fontWeight: "bold" }}>
               Developers / team behavior
             </legend>
@@ -234,6 +220,16 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
               help="Chance a worker asks for help in info phase."
             />
             <NumberField
+              label="Ask minimum gain"
+              field="askMinGain"
+              value={cfg.askMinGain}
+              onChange={updateField}
+              min={0}
+              max={0.5}
+              step={0.01}
+              help="Minimum believed knowledge gap required to ask."
+            />
+            <NumberField
               label="Absence probability"
               field="absenceProb"
               value={cfg.absenceProb}
@@ -283,14 +279,7 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
           </fieldset>
 
           {/* PRODUCT OWNER */}
-          <fieldset
-            style={{
-              border: "1px solid #ddd",
-              padding: 8,
-              borderRadius: 4,
-              marginBottom: 8,
-            }}
-          >
+          <fieldset className="form-panel">
             <legend style={{ fontSize: 12, fontWeight: "bold" }}>
               Product Owner &amp; backlog policy
             </legend>
@@ -336,14 +325,7 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
           </fieldset>
 
           {/* SIMULATION ENGINE */}
-          <fieldset
-            style={{
-              border: "1px solid #ddd",
-              padding: 8,
-              borderRadius: 4,
-              marginBottom: 8,
-            }}
-          >
+          <fieldset className="form-panel">
             <legend style={{ fontSize: 12, fontWeight: "bold" }}>
               Simulation engine
             </legend>

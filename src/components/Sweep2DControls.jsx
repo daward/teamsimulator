@@ -22,16 +22,18 @@ export default function Sweep2DControls({
   onRatioDenominatorKeyChange,
 }) {
   return (
-    <div className="border border-slate-200 rounded-md bg-white p-3 space-y-3 shadow-sm">
-      <h4 className="text-base font-semibold text-slate-900">Two-variable Sweep</h4>
+    <div className="border border-slate-200 rounded-md bg-white p-3 space-y-3 shadow-sm dark:bg-slate-900 dark:border-slate-700">
+      <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+        Two-variable Sweep
+      </h4>
 
       <div className="space-y-1 text-sm">
-        <label className="font-medium text-slate-700">X param (x-axis)</label>
+        <label className="font-medium text-slate-700 dark:text-slate-200">X param (x-axis)</label>
         <input
           list="sweep2d-xparam-options"
           value={xParam}
           onChange={(e) => onXParamChange(e.target.value)}
-          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="input-field"
         />
         <datalist id="sweep2d-xparam-options">
           {availableParams.map((key) => (
@@ -41,21 +43,23 @@ export default function Sweep2DControls({
       </div>
 
       <div className="space-y-1 text-sm">
-        <label className="font-medium text-slate-700">X values (comma-separated)</label>
+        <label className="font-medium text-slate-700 dark:text-slate-200">
+          X values (comma-separated)
+        </label>
         <input
           value={xValuesText}
           onChange={(e) => onXValuesTextChange(e.target.value)}
-          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="input-field"
         />
       </div>
 
       <div className="space-y-1 text-sm">
-        <label className="font-medium text-slate-700">Series param</label>
+        <label className="font-medium text-slate-700 dark:text-slate-200">Series param</label>
         <input
           list="sweep2d-seriesparam-options"
           value={seriesParam}
           onChange={(e) => onSeriesParamChange(e.target.value)}
-          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="input-field"
         />
         <datalist id="sweep2d-seriesparam-options">
           {availableParams.map((key) => (
@@ -65,21 +69,23 @@ export default function Sweep2DControls({
       </div>
 
       <div className="space-y-1 text-sm">
-        <label className="font-medium text-slate-700">Series values (comma-separated)</label>
+        <label className="font-medium text-slate-700 dark:text-slate-200">
+          Series values (comma-separated)
+        </label>
         <input
           value={seriesValuesText}
           onChange={(e) => onSeriesValuesTextChange(e.target.value)}
-          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          className="input-field"
         />
       </div>
 
       <div className="space-y-1 text-sm">
-        <label className="font-medium text-slate-700">Y mode</label>
+        <label className="font-medium text-slate-700 dark:text-slate-200">Y mode</label>
         <select
           value={metricMode}
           onChange={(e) => onMetricModeChange(e.target.value)}
           disabled={availableMetricKeys.length === 0}
-          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100"
+          className="select-field"
         >
           <option value="single">Single metric</option>
           <option value="ratio">Ratio (A / B)</option>
@@ -88,12 +94,14 @@ export default function Sweep2DControls({
 
       {metricMode === "single" ? (
         <div className="space-y-1 text-sm">
-          <label className="font-medium text-slate-700">Metric (from stats)</label>
+          <label className="font-medium text-slate-700 dark:text-slate-200">
+            Metric (from stats)
+          </label>
           <select
             value={metricKey}
             onChange={(e) => onMetricKeyChange(e.target.value)}
             disabled={availableMetricKeys.length === 0}
-            className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100"
+            className="select-field"
           >
             {availableMetricKeys.length === 0 ? (
               <option value={metricKey}>(run sweep to load metrics)</option>
@@ -109,12 +117,12 @@ export default function Sweep2DControls({
       ) : (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1 text-sm">
-            <label className="font-medium text-slate-700">Numerator (A)</label>
+            <label className="font-medium text-slate-700 dark:text-slate-200">Numerator (A)</label>
             <select
               value={ratioNumeratorKey}
               onChange={(e) => onRatioNumeratorKeyChange(e.target.value)}
               disabled={availableMetricKeys.length === 0}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100"
+              className="select-field"
             >
               {availableMetricKeys.map((k) => (
                 <option key={k} value={k}>
@@ -125,12 +133,12 @@ export default function Sweep2DControls({
           </div>
 
           <div className="space-y-1 text-sm">
-            <label className="font-medium text-slate-700">Denominator (B)</label>
+            <label className="font-medium text-slate-700 dark:text-slate-200">Denominator (B)</label>
             <select
               value={ratioDenominatorKey}
               onChange={(e) => onRatioDenominatorKeyChange(e.target.value)}
               disabled={availableMetricKeys.length === 0}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100"
+              className="select-field"
             >
               {availableMetricKeys.map((k) => (
                 <option key={k} value={k}>

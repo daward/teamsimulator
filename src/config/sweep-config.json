@@ -11,6 +11,7 @@
     "u_decay": { "target": "knowledgeDecayRate", "min": 0.0, "max": 0.15, "type": "float" },
     "u_completionLearn": { "target": "completionLearningRate", "min": 0.0, "max": 0.2, "type": "float" },
     "u_convoLearn": { "target": "conversationLearningRate", "min": 0.0, "max": 1.0, "type": "float" },
+    "u_askMinGain": { "target": "askMinGain", "min": 0.0, "max": 0.5, "type": "float" },
     "u_infoImpl": { "target": "infoToImplRatio", "type": "ratio" }
   }
 }

@@ -72,3 +72,34 @@ export function samplePoisson(lambda) {
 
   return k - 1;
 }
+
+// Pearson correlation (returns null if insufficient or invalid)
+export function pearson(xs, ys) {
+  const n = xs?.length;
+  if (!n || n < 2 || !ys || ys.length !== n) return null;
+
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumX2 = 0;
+  let sumY2 = 0;
+
+  for (let i = 0; i < n; i++) {
+    const x = xs[i];
+    const y = ys[i];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    sumX += x;
+    sumY += y;
+    sumXY += x * y;
+    sumX2 += x * x;
+    sumY2 += y * y;
+  }
+
+  const numerator = n * sumXY - sumX * sumY;
+  const denomLeft = n * sumX2 - sumX * sumX;
+  const denomRight = n * sumY2 - sumY * sumY;
+  const denom = Math.sqrt(Math.max(denomLeft, 0) * Math.max(denomRight, 0));
+
+  if (!Number.isFinite(denom) || denom === 0) return null;
+  return numerator / denom;
+}

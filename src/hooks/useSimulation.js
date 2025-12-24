@@ -18,6 +18,7 @@ export function useSimulation() {
   const [sweep2DResult, setSweep2DResult] = useState(null);
   const [scatterResult, setScatterResult] = useState(null);
   const [scatterProgress, setScatterProgress] = useState(null);
+  const [sweep2DProgress, setSweep2DProgress] = useState(null);
 
   const ensureWorker = useCallback(() => {
     if (workerRef.current) return workerRef.current;
@@ -31,6 +32,7 @@ export function useSimulation() {
       if (msg.type === "error") {
         setError(typeof msg.payload === "string" ? msg.payload : "Worker error");
         setScatterProgress(null);
+        setSweep2DProgress(null);
         setRunning(false);
         return;
       }
@@ -49,6 +51,7 @@ export function useSimulation() {
 
       if (msg.type === "sweep2DResult") {
         setSweep2DResult(msg.payload);
+        setSweep2DProgress(null);
         setRunning(false);
         return;
       }
@@ -62,6 +65,11 @@ export function useSimulation() {
 
       if (msg.type === "scatterProgress") {
         setScatterProgress(msg.payload || null);
+        return;
+      }
+
+      if (msg.type === "sweep2DProgress") {
+        setSweep2DProgress(msg.payload || null);
         return;
       }
 
@@ -112,6 +120,7 @@ export function useSimulation() {
       setError(null);
       setRunning(true);
       setScatterProgress(null);
+      setSweep2DProgress(null);
 
       const w = ensureWorker();
       try {
@@ -166,6 +175,7 @@ export function useSimulation() {
     sweep2DResult,
     scatterResult,
     scatterProgress,
+    sweep2DProgress,
 
     runSingle,
     runSweep1D,

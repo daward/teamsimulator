@@ -10,6 +10,7 @@ import {
   YAxis,
   Cell,
 } from "recharts";
+import { pearson } from "../simulation/utils";
 
 function getValueByAxisKey(point, axisKey) {
   if (!axisKey || typeof axisKey !== "string") return NaN;
@@ -52,53 +53,24 @@ function prettyAxisLabel(axisKey) {
   return axisKey;
 }
 
-function pearson(xs, ys) {
-  const n = xs.length;
-  if (n < 2) return null;
-
-  let sumX = 0;
-  let sumY = 0;
-  let sumXY = 0;
-  let sumX2 = 0;
-  let sumY2 = 0;
-
-  for (let i = 0; i < n; i++) {
-    const x = xs[i];
-    const y = ys[i];
-    sumX += x;
-    sumY += y;
-    sumXY += x * y;
-    sumX2 += x * x;
-    sumY2 += y * y;
-  }
-
-  const numerator = n * sumXY - sumX * sumY;
-  const denomLeft = n * sumX2 - sumX * sumX;
-  const denomRight = n * sumY2 - sumY * sumY;
-  const denom = Math.sqrt(Math.max(denomLeft, 0) * Math.max(denomRight, 0));
-
-  if (!Number.isFinite(denom) || denom === 0) return null;
-  return numerator / denom;
-}
-
 function formatNumber(x) {
-  if (!Number.isFinite(x)) return "—";
+  if (!Number.isFinite(x)) return "n/a";
   return x.toFixed(3);
 }
 
 function correlationColor(r) {
   if (!Number.isFinite(r)) return "inherit";
-  if (r >= 0.5) return "#1a7f37"; // green for strong positive
-  if (r <= -0.5) return "#c62828"; // red for strong negative
+  if (r >= 0.5) return "#16a34a"; // stronger green
+  if (r <= -0.5) return "#ef4444"; // stronger red
   return "inherit";
 }
 
 function correlationBg(r, isActive) {
-  if (!Number.isFinite(r)) return isActive ? "#eef5ff" : "transparent";
+  if (!Number.isFinite(r)) return isActive ? "#dbeafe" : "transparent";
 
-  const basePos = "rgba(26, 127, 55, 0.14)";
-  const baseNeg = "rgba(198, 40, 40, 0.14)";
-  const activeOverlay = "rgba(74, 144, 226, 0.18)"; // highlight for current X
+  const basePos = "rgba(34, 197, 94, 0.45)"; // deeper green tint
+  const baseNeg = "rgba(239, 68, 68, 0.45)"; // deeper red tint
+  const activeOverlay = "rgba(59, 130, 246, 0.45)"; // highlight for current X
 
   let bg = "transparent";
   if (r >= 0.5) bg = basePos;
@@ -163,19 +135,20 @@ export default function ScatterPlot({
       return { assign: () => ({ color: "#888", bin: null }), legend: null };
     }
 
+    // Single-hue scale (vary lightness/saturation)
+    const baseHue = 220; // blue
     if (!colorQuantize) {
-      const hueStart = 210; // blue
-      const hueEnd = 10; // red
       const assign = (v) => {
         if (!Number.isFinite(v)) return { color: "#888", bin: null };
         const t = Math.max(0, Math.min(1, (v - colorMin) / (colorMax - colorMin)));
-        const hue = hueStart + (hueEnd - hueStart) * t;
-        return { color: `hsl(${hue}, 70%, 55%)`, bin: null };
+        const lightness = 80 - t * 40; // from light to darker
+        const sat = 70 + t * 10; // slightly increase saturation
+        return { color: `hsl(${baseHue}, ${sat}%, ${lightness}%)`, bin: null };
       };
       return { assign, legend: null };
     }
 
-    // Quantized into 5 buckets using quantiles
+    // Quantized into 5 buckets using quantiles (single-hue palette)
     const sorted = [...colorValues].sort((a, b) => a - b);
     const q = (p) => {
       if (!sorted.length) return NaN;
@@ -184,7 +157,7 @@ export default function ScatterPlot({
     };
 
     const thresholds = [q(0), q(0.2), q(0.4), q(0.6), q(0.8), q(1)];
-    const palette = ["#1f77b4", "#5aa5b8", "#8bc18f", "#f1c04d", "#d45a3f"];
+    const palette = ["#e0ecff", "#b7d0ff", "#8bb3ff", "#5a8bff", "#2f66e0"];
 
     const assign = (v) => {
       if (!Number.isFinite(v)) return { color: "#888", bin: null };
@@ -337,46 +310,69 @@ export default function ScatterPlot({
                 const p = payload[0]?.payload;
                 if (!p) return null;
 
+                const isDark =
+                  typeof document !== "undefined" &&
+                  document.documentElement.classList.contains("dark");
+                const tooltipStyle = {
+                  background: isDark ? "rgba(15,23,42,0.94)" : "#fff",
+                  color: isDark ? "#e5e7eb" : "#0f172a",
+                  border: isDark ? "1px solid #334155" : "1px solid #ccc",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                  padding: 8,
+                  borderRadius: 6,
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                };
+
                 return (
-                  <div style={{ background: "#fff", border: "1px solid #ccc", padding: 8 }}>
-                    <div>
+                  <div style={tooltipStyle}>
+                    <div style={{ marginBottom: 2 }}>
                       <b>{xLabel}:</b> {p.x}
                     </div>
-                    <div>
+                    <div style={{ marginBottom: 2 }}>
                       <b>{yLabel}:</b> {p.y}
                     </div>
                     {colorKey ? (
                       <div>
                         <b>{colorLabel}:</b>{" "}
-                        {Number.isFinite(p.colorValue) ? formatNumber(p.colorValue) : "—"}
+                        {Number.isFinite(p.colorValue) ? formatNumber(p.colorValue) : "n/a"}
                       </div>
                     ) : null}
                   </div>
                 );
               }}
             />
-            <Scatter data={mappedPoints}>
-              {mappedPoints.map((entry, idx) => {
+            <Scatter
+              data={mappedPoints}
+              shape={(props) => {
+                const { cx, cy, payload } = props;
                 const faded =
-                  activeBin != null && entry.bin != null && entry.bin !== activeBin;
-                const fillOpacity = faded ? 0.18 : 1;
-                return <Cell key={`cell-${idx}`} fill={entry.fill} fillOpacity={fillOpacity} />;
-              })}
-            </Scatter>
+                  activeBin != null && payload?.bin != null && payload.bin !== activeBin;
+                const fill = payload?.fill || "#888";
+                let opacity = 0.62;
+                if (activeBin != null) {
+                  opacity = faded ? 0.22 : 1;
+                }
+                const radius = 7;
+                return (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={radius}
+                    fill={fill}
+                    fillOpacity={opacity}
+                    stroke="none"
+                  />
+                );
+              }}
+              isAnimationActive={false}
+            />
           </ScatterChart>
         </ResponsiveContainer>
       </div>
 
       {colorKey ? (
-        <div
-          style={{
-            marginTop: 8,
-            padding: 8,
-            border: "1px solid #eee",
-            borderRadius: 4,
-            background: "#fafafa",
-          }}
-        >
+        <div className="mt-2 p-3 border border-slate-200 rounded-md bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <strong style={{ fontSize: 13 }}>Color by: {colorLabel}</strong>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -407,40 +403,27 @@ export default function ScatterPlot({
             </div>
           </div>
           {Number.isFinite(colorMin) && Number.isFinite(colorMax) ? (
-            <div style={{ marginTop: 6 }}>
+            <div className="mt-2">
               {colorLegend ? (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <div className="flex flex-wrap gap-2">
                   {colorLegend.map((bin, idx) => {
                     const isActive = activeBin === bin.bin;
                     return (
                       <button
                         key={idx}
-                        onClick={() => {
-                          setActiveBin(isActive ? null : bin.bin);
-                        }}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "4px 6px",
-                          background: isActive ? "rgba(74,144,226,0.18)" : "#fff",
-                          border: "1px solid #ddd",
-                          borderRadius: 4,
-                          fontSize: 12,
-                          cursor: "pointer",
-                        }}
+                        onClick={() => setActiveBin(isActive ? null : bin.bin)}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-sm transition ${
+                          isActive
+                            ? "border-indigo-400 bg-indigo-500/20 text-slate-900 dark:text-slate-100"
+                            : "border-slate-300 bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
+                        }`}
                       >
-                        <div
-                          style={{
-                            width: 18,
-                            height: 10,
-                            background: bin.color,
-                            borderRadius: 3,
-                            border: "1px solid #ccc",
-                          }}
+                        <span
+                          className="inline-block w-4 h-3 rounded border border-slate-200"
+                          style={{ background: bin.color }}
                         />
                         <span>
-                          {formatNumber(bin.min)} – {formatNumber(bin.max)}
+                          {formatNumber(bin.min)} - {formatNumber(bin.max)}
                         </span>
                       </button>
                     );
@@ -448,22 +431,8 @@ export default function ScatterPlot({
                 </div>
               ) : (
                 <>
-                  <div
-                    style={{
-                      height: 10,
-                      borderRadius: 6,
-                      background:
-                        "linear-gradient(90deg, hsl(210,70%,55%) 0%, hsl(10,70%,55%) 100%)",
-                    }}
-                  />
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: 12,
-                      marginTop: 4,
-                    }}
-                  >
+                  <div className="h-2 rounded bg-gradient-to-r from-[hsl(220,80%,80%)] to-[hsl(220,80%,40%)]" />
+                  <div className="flex justify-between text-xs mt-1 text-slate-700 dark:text-slate-200">
                     <span>{formatNumber(colorMin)}</span>
                     <span>{formatNumber(colorMax)}</span>
                   </div>
@@ -487,63 +456,55 @@ export default function ScatterPlot({
             No correlation data (need numeric target present in scatter points).
           </div>
         ) : (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: 13,
-            }}
-          >
-            <thead>
-              <tr>
-                <th style={{ textAlign: "left", padding: "4px 6px", borderBottom: "1px solid #ddd" }}>
-                  Feature
-                </th>
-                <th style={{ textAlign: "right", padding: "4px 6px", borderBottom: "1px solid #ddd" }}>
-                  r
-                </th>
-                <th style={{ textAlign: "right", padding: "4px 6px", borderBottom: "1px solid #ddd" }}>
-                  n
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {correlations.map((row) => {
-                const isActive = xAxisKey === row.key;
-                const rowBg = correlationBg(row.r, isActive);
-                return (
-                  <tr
-                    key={row.key}
-                    style={{
-                      cursor: onSelectXAxis ? "pointer" : "default",
-                      background: rowBg,
-                    }}
-                    onClick={() => {
-                      if (onSelectXAxis) onSelectXAxis(row.key);
-                    }}
-                  >
-                    <td style={{ padding: "4px 6px", borderBottom: "1px solid #f0f0f0" }}>
-                      {row.label}
-                    </td>
-                    <td
-                      style={{
-                        padding: "4px 6px",
-                        textAlign: "right",
-                        borderBottom: "1px solid #f0f0f0",
-                        color: correlationColor(row.r),
-                        fontWeight: Math.abs(row.r) >= 0.5 ? 600 : 400,
+          <div className="overflow-hidden border border-slate-200 rounded-md dark:border-slate-700">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-slate-100 dark:bg-slate-800">
+                <tr>
+                  <th className="text-left px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                    Feature
+                  </th>
+                  <th className="text-right px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                    r
+                  </th>
+                  <th className="text-right px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                    n
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {correlations.map((row) => {
+                  const isActive = xAxisKey === row.key;
+                  const rowBg = correlationBg(row.r, isActive);
+                  return (
+                    <tr
+                      key={row.key}
+                      className="cursor-pointer"
+                      style={{ background: rowBg }}
+                      onClick={() => {
+                        if (onSelectXAxis) onSelectXAxis(row.key);
                       }}
                     >
-                      {formatNumber(row.r)}
-                    </td>
-                    <td style={{ padding: "4px 6px", textAlign: "right", borderBottom: "1px solid #f0f0f0" }}>
-                      {row.n}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                        {row.label}
+                      </td>
+                      <td
+                        className="px-3 py-2 text-right border-b border-slate-100 dark:border-slate-800"
+                        style={{
+                          color: correlationColor(row.r),
+                          fontWeight: Math.abs(row.r) >= 0.5 ? 700 : 500,
+                        }}
+                      >
+                        {formatNumber(row.r)}
+                      </td>
+                      <td className="px-3 py-2 text-right border-b border-slate-100 dark:border-slate-800">
+                        {row.n}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

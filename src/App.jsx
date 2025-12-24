@@ -9,8 +9,15 @@ import { useUrlSyncAndAutoRun } from "./hooks/useUrlSyncAndAutoRun";
 import AppShell from "./components/AppShell";
 import SidebarControls from "./components/SidebarControls";
 import MainPane from "./components/MainPane";
+import { useEffect, useMemo, useState } from "react";
+import { expandSweepValues } from "./controllers/buildRunRequests";
 
 export default function App() {
+  const [darkMode, setDarkMode] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+      : false
+  );
   const app = useAppState(baseConfig);
   const sim = useSimulation();
 
@@ -67,6 +74,17 @@ export default function App() {
     showConfigPanel: app.showConfigPanel,
   };
 
+  const plannedSweep2DRuns = useMemo(() => {
+    const xs = expandSweepValues(app.xParam, app.xValuesText, app.presetGroups);
+    const series = expandSweepValues(
+      app.seriesParam,
+      app.seriesValuesText,
+      app.presetGroups
+    );
+    if (!xs.length || !series.length) return 0;
+    return xs.length * series.length;
+  }, [app.xParam, app.xValuesText, app.seriesParam, app.seriesValuesText, app.presetGroups]);
+
   useUrlSyncAndAutoRun({
     urlState,
     applyUrlState: app.applyUrlState,
@@ -92,40 +110,55 @@ export default function App() {
     runSweep2D: sim.runSweep2D,
   });
 
+  useEffect(() => {
+    const root = document.documentElement;
+    if (darkMode) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [darkMode]);
+
   return (
-    <AppShell
-      sidebarOpen={app.sidebarOpen}
-      onToggleSidebar={() => app.setSidebarOpen((v) => !v)}
-      sidebar={
-        <SidebarControls
-          app={app}
-          sim={sim}
-          availableParams={keys.availableParams}
-          availableMetricKeys={keys.availableMetricKeys}
-        />
-      }
-      main={
-        <MainPane
-          mode={app.mode}
-          running={sim.running}
-          error={sim.error}
-          result={sim.result}
-          sweep1DResult={sim.sweep1DResult}
-          sweep2DResult={sim.sweep2DResult}
-          scatterResult={sim.scatterResult}
-          scatterProgress={sim.scatterProgress}
-          metricSpec={keys.metricSpec}
-          scatterXAxisKey={app.scatterXAxisKey}
-          scatterYAxisKey={app.scatterYAxisKey}
-          onSetScatterXAxisKey={app.setScatterXAxisKey}
-          scatterColorKey={app.scatterColorKey}
-          onSetScatterColorKey={app.setScatterColorKey}
-          scatterColorQuantize={app.scatterColorQuantize}
-          onSetScatterColorQuantize={app.setScatterColorQuantize}
-          scatterUnitKeys={app.scatterUnitKeys}
-          onSetScatterUnitKeys={app.setScatterUnitKeys}
-        />
-      }
-    />
+    <div className={darkMode ? "dark" : ""}>
+      <AppShell
+        sidebarOpen={app.sidebarOpen}
+        onToggleSidebar={() => app.setSidebarOpen((v) => !v)}
+        darkMode={darkMode}
+        onToggleDarkMode={() => setDarkMode((v) => !v)}
+        sidebar={
+          <SidebarControls
+            app={app}
+            sim={sim}
+            availableParams={keys.availableParams}
+            availableMetricKeys={keys.availableMetricKeys}
+          />
+        }
+        main={
+          <MainPane
+            mode={app.mode}
+            running={sim.running}
+            error={sim.error}
+            result={sim.result}
+            sweep1DResult={sim.sweep1DResult}
+            sweep2DResult={sim.sweep2DResult}
+            scatterResult={sim.scatterResult}
+            scatterProgress={sim.scatterProgress}
+            sweep2DProgress={sim.sweep2DProgress}
+            plannedSweep2DRuns={plannedSweep2DRuns}
+            metricSpec={keys.metricSpec}
+            scatterXAxisKey={app.scatterXAxisKey}
+            scatterYAxisKey={app.scatterYAxisKey}
+            onSetScatterXAxisKey={app.setScatterXAxisKey}
+            scatterColorKey={app.scatterColorKey}
+            onSetScatterColorKey={app.setScatterColorKey}
+            scatterColorQuantize={app.scatterColorQuantize}
+            onSetScatterColorQuantize={app.setScatterColorQuantize}
+            scatterUnitKeys={app.scatterUnitKeys}
+            onSetScatterUnitKeys={app.setScatterUnitKeys}
+          />
+        }
+      />
+    </div>
   );
 }

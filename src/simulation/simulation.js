@@ -3,7 +3,7 @@ import { Worker } from "./worker.js";
 import { Task } from "./task.js";
 import { Backlog } from "./backlog.js";
 import { ProductOwner } from "./po.js";
-import { samplePoisson, shuffleInPlace, mean, stddev } from "./utils.js";
+import { samplePoisson, shuffleInPlace, mean } from "./utils.js";
 import {
   computeFinalTeamAvgExpertise,
   computeFinalTeamAvgMaxExpertisePerTopic
@@ -42,7 +42,11 @@ function makeInitialStats() {
 
     // final expertise scalars (0..1)
     finalTeamAvgExpertise: 0,
-    finalTeamAvgMaxExpertisePerTopic: 0
+    finalTeamAvgMaxExpertisePerTopic: 0,
+
+    // Knowledge gain tracking
+    conversationExperienceGain: 0,
+    completionExperienceGain: 0
   };
 }
 
@@ -55,6 +59,11 @@ function finalizeStats(stats, workers, cfg) {
     workers,
     cfg.numTaskTypes
   );
+
+   const totalGain =
+     (stats.conversationExperienceGain ?? 0) + (stats.completionExperienceGain ?? 0);
+   stats.conversationExperienceShare =
+     totalGain > 0 ? stats.conversationExperienceGain / totalGain : 0;
 }
 
 function runSingleSimulation(cfg) {
@@ -211,7 +220,10 @@ function runSingleSimulation(cfg) {
             stats.askWithHelper++;
 
             // Conversation happens: asker acts, helper becomes busy and loses their cycle.
-            w.workInfoWithHelper(helper);
+            const gain = w.workInfoWithHelper(helper);
+            if (Number.isFinite(gain)) {
+              stats.conversationExperienceGain += gain;
+            }
 
             // COST: helper loses their cycle this round
             busyThisCycle.add(helper.id);
@@ -248,7 +260,10 @@ function runSingleSimulation(cfg) {
           stats.currentCycleCompletedValue += t.value;
 
           // Apply consolidated learning at task completion.
-          w.learnOnTaskCompletion(t);
+          const gain = w.learnOnTaskCompletion(t);
+          if (Number.isFinite(gain)) {
+            stats.completionExperienceGain += gain;
+          }
 
           if (cycle >= burnInCycles) {
             const recurring = t.value * t.valueRetention;
@@ -289,7 +304,7 @@ function runSingleSimulation(cfg) {
 
 /**
  * Public entrypoint.
- * If cfg.replicates > 1, returns aggregate stats (mean + stddev) and one sample run.
+ * If cfg.replicates > 1, returns aggregate stats (mean only) and one sample run.
  */
 export function runSimulation(cfg) {
   const reps = Math.max(1, Math.floor(cfg.replicates ?? 20));
@@ -312,7 +327,7 @@ export function runSimulation(cfg) {
     }
   }
 
-  // Aggregate numeric fields (mean + stddev)
+  // Aggregate numeric fields (mean only)
   const numericKeys = Object.keys(perRepStats[0]).filter((k) => {
     const v = perRepStats[0][k];
     return typeof v === "number" && Number.isFinite(v);
@@ -322,7 +337,6 @@ export function runSimulation(cfg) {
   for (const k of numericKeys) {
     const values = perRepStats.map((s) => s[k]);
     aggregate[k] = mean(values);
-    aggregate[`${k}StdDev`] = stddev(values);
   }
 
   aggregate.replicates = reps;

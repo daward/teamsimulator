@@ -64,6 +64,11 @@ export class Worker {
 
     this.setKnowledge(topic, newA);
     helper.setKnowledge(topic, newB);
+
+    return {
+      deltaSelf: newA - A,
+      deltaHelper: newB - B
+    };
   }
 
   // Decay only on topics NOT touched this cycle
@@ -235,7 +240,7 @@ export class Worker {
     helper.touchedTopicThisCycle = topic;
 
     // Conversation learning updates both workers now.
-    this.converseWith(helper, topic);
+    const convo = this.converseWith(helper, topic);
 
     // Update beliefs both ways (never allows self due to guard in updateBelief)
     this.updateBelief(topic, helper.id, helper.getKnowledge(topic));
@@ -254,6 +259,8 @@ export class Worker {
       this.remainingInfo = 0;
       this.phase = this.remainingImpl > 0 ? "impl" : null;
     }
+
+    return (convo?.deltaSelf ?? 0) + (convo?.deltaHelper ?? 0);
   }
 
   workImpl() {
@@ -267,7 +274,7 @@ export class Worker {
   }
 
   learnOnTaskCompletion(task) {
-    if (!task) return;
+    if (!task) return 0;
     const topic = task.type;
 
     const infoUnits = task.initialInfoTime ?? task.infoTime ?? 0;
@@ -281,10 +288,11 @@ export class Worker {
     // Scale by effort with a stronger boost; still sublinear and capped.
     const effectiveRate = Math.min(0.95, baseRate * (1 + 2 * Math.log1p(effort)));
 
-    if (effectiveRate <= 0) return;
+    if (effectiveRate <= 0) return 0;
 
     const current = this.getKnowledge(topic);
     const delta = effectiveRate * (1 - current);
     this.setKnowledge(topic, current + delta);
+    return delta;
   }
 }

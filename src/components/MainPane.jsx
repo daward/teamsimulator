@@ -16,6 +16,7 @@ export default function MainPane({
   scatterXAxisKey,
   scatterYAxisKey,
   scatterProgress,
+  sweep2DProgress,
   onSetScatterXAxisKey,
   scatterColorKey,
   onSetScatterColorKey,
@@ -23,27 +24,33 @@ export default function MainPane({
   onSetScatterColorQuantize,
   scatterUnitKeys,
   onSetScatterUnitKeys,
+  plannedSweep2DRuns,
 }) {
-  const total = scatterProgress?.total ?? null;
-  const done = scatterProgress?.done ?? 0;
+  const progress = sweep2DProgress || scatterProgress;
+  const total = progress?.total ?? null;
+  const done = progress?.done ?? 0;
   const pct = total ? Math.max(0, Math.min(100, Math.round((done / total) * 100))) : null;
 
-  const showProgress = running || scatterProgress;
-  const hasDeterminate = scatterProgress && pct != null;
+  const showProgress = running || progress;
+  const hasDeterminate = progress && pct != null;
+  const plannedLabel =
+    plannedSweep2DRuns && mode === "sweep2D" && plannedSweep2DRuns > 0
+      ? ` (${plannedSweep2DRuns} planned)`
+      : "";
 
   return (
     <div className="space-y-4">
       {showProgress && (
         <div className="chart-card">
-          <div className="flex items-center justify-between text-sm text-slate-700">
-            <span>Running simulations…</span>
+          <div className="flex items-center justify-between text-sm font-semibold text-slate-900 dark:text-slate-50">
+            <span>Running simulations{plannedLabel}...</span>
             {hasDeterminate && (
               <span>
                 {total ? `${done} / ${total}` : done} {pct != null ? `(${pct}%)` : ""}
               </span>
             )}
           </div>
-          <div className="mt-2 h-2 rounded-full bg-slate-200 overflow-hidden">
+          <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
             {hasDeterminate ? (
               <div
                 className="h-full bg-indigo-500 transition-[width] duration-150 ease-out"
@@ -65,7 +72,7 @@ export default function MainPane({
       {mode === "single" && result && (
         <div className="chart-card">
           <h2>Single Run Result</h2>
-          <pre className="bg-slate-50 border border-slate-200 rounded p-3 max-h-[500px] overflow-auto text-sm">
+          <pre className="max-h-[500px] overflow-auto text-sm">
             {JSON.stringify(result, null, 2)}
           </pre>
         </div>

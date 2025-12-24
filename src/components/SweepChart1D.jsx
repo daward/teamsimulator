@@ -28,6 +28,14 @@ function metricLabel(metricSpec) {
   return `${metricSpec.numeratorKey} / ${metricSpec.denominatorKey}`;
 }
 
+function formatTickShort(value) {
+  if (!Number.isFinite(value)) return value;
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toFixed(0);
+  if (abs >= 1) return value.toFixed(3);
+  return value.toPrecision(3);
+}
+
 export default function SweepChart1D({ sweep, metricSpec }) {
   if (!sweep) return null;
 
@@ -69,19 +77,28 @@ export default function SweepChart1D({ sweep, metricSpec }) {
       </h2>
 
       <div style={{ marginTop: 8 }}>
-        <LineChart width={820} height={380} data={chartData}>
-          <CartesianGrid stroke="#eee" />
+        <LineChart
+          width={820}
+          height={380}
+          data={chartData}
+          margin={{ top: 20, right: 20, bottom: 30, left: 80 }}
+        >
+          <CartesianGrid />
           <XAxis
             dataKey="x"
             type={isNumericX ? "number" : "category"}
+            tickFormatter={formatTickShort}
             label={{ value: paramName, position: "insideBottom", dy: 10 }}
           />
           <YAxis
             domain={yDomain}
+            width={90}
+            tickFormatter={formatTickShort}
             label={{
               value: label,
               angle: -90,
-              position: "insideLeft",
+              position: "left",
+              offset: 10,
               style: { textAnchor: "middle" },
             }}
           />
@@ -89,7 +106,7 @@ export default function SweepChart1D({ sweep, metricSpec }) {
             formatter={(v) => (Number.isFinite(v) ? v.toFixed(6) : "")}
             labelFormatter={(l) => `${paramName} = ${l}`}
           />
-          <Line type="monotone" dataKey="y" dot stroke="#3366cc" />
+          <Line type="monotone" dataKey="y" dot stroke="#3366cc" strokeWidth={2.2} />
         </LineChart>
       </div>
     </div>

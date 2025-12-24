@@ -18,6 +18,20 @@ function buildScatterAxisOptions(availableMetricKeys) {
     new Set(Object.values(unitMappings).map((d) => d?.target).filter(Boolean))
   );
 
+  const cfgExtras = [
+    "askMinGain",
+    "askProb",
+    "completionLearningRate",
+    "conversationLearningRate",
+    "numCycles",
+    "burnInCycles",
+    "poErrorProb",
+    "poWindowSize",
+    "poActionsPerCycle",
+    "maxBacklogSize",
+    "backlogSize",
+  ];
+
   const statsOptions = (availableMetricKeys || []).map((k) => ({
     value: `stats:${k}`,
     label: k,
@@ -28,7 +42,7 @@ function buildScatterAxisOptions(availableMetricKeys) {
     label: k,
   }));
 
-  const cfgOptions = cfgTargets.map((k) => ({
+  const cfgOptions = Array.from(new Set([...cfgTargets, ...cfgExtras])).map((k) => ({
     value: `cfg:${k}`,
     label: k,
   }));
@@ -140,16 +154,8 @@ export default function SidebarControls({
       />
 
       {app.mode === "single" && (
-        <div
-          style={{
-            border: "1px solid #ddd",
-            padding: 8,
-            borderRadius: 4,
-            marginTop: 10,
-            background: "#fff",
-          }}
-        >
-          <h4 style={{ marginTop: 0 }}>Single run</h4>
+        <div className="form-panel">
+          <h4 className="panel-title">Single run</h4>
           <button onClick={handleRunSingle} disabled={sim.running}>
             {sim.running ? "Running…" : "Run Simulation"}
           </button>
@@ -203,35 +209,27 @@ export default function SidebarControls({
       )}
 
       {app.mode === "scatter" && (
-        <div
-          style={{
-            border: "1px solid #ddd",
-            padding: 8,
-            borderRadius: 4,
-            marginTop: 10,
-            background: "#fff",
-          }}
-        >
-          <h4 style={{ marginTop: 0 }}>Scatter (unit-random)</h4>
+        <div className="form-panel">
+          <h4 className="panel-title">Scatter (unit-random)</h4>
 
-          <label style={{ display: "block", marginBottom: 6 }}>
-            Points (n)
+          <div className="space-y-1 text-sm">
+            <label>Points (n)</label>
             <input
               type="number"
               value={app.scatterN}
               min={1}
               step={1}
               onChange={(e) => app.setScatterN(Number(e.target.value))}
-              style={{ width: "100%" }}
+              className="input-field"
             />
-          </label>
+          </div>
 
-          <label style={{ display: "block", marginBottom: 6 }}>
-            X axis
+          <div className="space-y-1 text-sm">
+            <label>X axis</label>
             <select
               value={app.scatterXAxisKey}
               onChange={(e) => app.setScatterXAxisKey(e.target.value)}
-              style={{ width: "100%" }}
+              className="select-field"
             >
               <optgroup label="Stats (outputs)">
                 {statsOptions.map((o) => (
@@ -257,14 +255,14 @@ export default function SidebarControls({
                 ))}
               </optgroup>
             </select>
-          </label>
+          </div>
 
-          <label style={{ display: "block", marginBottom: 6 }}>
-            Y axis
+          <div className="space-y-1 text-sm">
+            <label>Y axis</label>
             <select
               value={app.scatterYAxisKey}
               onChange={(e) => app.setScatterYAxisKey(e.target.value)}
-              style={{ width: "100%" }}
+              className="select-field"
             >
               <optgroup label="Stats (outputs)">
                 {statsOptions.map((o) => (
@@ -290,14 +288,14 @@ export default function SidebarControls({
                 ))}
               </optgroup>
             </select>
-          </label>
+          </div>
 
-          <label style={{ display: "block", marginBottom: 6 }}>
-            Color by
+          <div className="space-y-1 text-sm">
+            <label>Color by</label>
             <select
               value={app.scatterColorKey}
               onChange={(e) => app.setScatterColorKey(e.target.value)}
-              style={{ width: "100%" }}
+              className="select-field"
             >
               <option value="">None</option>
 
@@ -325,57 +323,50 @@ export default function SidebarControls({
                 ))}
               </optgroup>
             </select>
-          </label>
+          </div>
 
-          <label style={{ display: "block", marginBottom: 6, fontSize: 12 }}>
+          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={app.scatterColorQuantize}
               onChange={(e) => app.setScatterColorQuantize(e.target.checked)}
-              style={{ marginRight: 6 }}
             />
             Quantize color (5 buckets)
           </label>
 
-          <div
-            style={{
-              marginTop: 8,
-              padding: 8,
-              border: "1px solid #eee",
-              borderRadius: 4,
-              background: "#fafafa",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <strong style={{ fontSize: 12 }}>Vary unit variables</strong>
-              <div style={{ display: "flex", gap: 6 }}>
+          <div className="nested-panel">
+            <div className="flex items-center justify-between">
+              <strong className="text-xs text-slate-700 dark:text-slate-200">
+                Vary unit variables
+              </strong>
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  style={{ fontSize: 11, padding: "2px 6px" }}
+                  className="text-xs px-2 py-1"
                   onClick={() => app.setScatterUnitKeys(unitKeys)}
                 >
                   All
                 </button>
                 <button
                   type="button"
-                  style={{ fontSize: 11, padding: "2px 6px" }}
+                  className="text-xs px-2 py-1"
                   onClick={() => app.setScatterUnitKeys([])}
                 >
                   None (fix mid)
                 </button>
               </div>
             </div>
-            <p style={{ margin: "4px 0 6px", fontSize: 11, color: "#555" }}>
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 m-0">
               Only checked unit vars are randomized; unchecked stay at the base/preset config values.
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 6 }}>
+            <div className="grid grid-cols-2 gap-2">
               {unitKeys.map((k) => {
                 const checked =
                   !Array.isArray(app.scatterUnitKeys) ||
                   app.scatterUnitKeys.length === 0 ||
                   app.scatterUnitKeys.includes(k);
                 return (
-                  <label key={k} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <label key={k} className="text-xs flex items-center gap-2 text-slate-700 dark:text-slate-200">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -400,7 +391,7 @@ export default function SidebarControls({
             {sim.running ? "Running…" : "Run Scatter"}
           </button>
 
-          <p style={{ fontSize: 12, marginTop: 8, opacity: 0.8 }}>
+          <p className="text-xs text-slate-600 dark:text-slate-300 m-0">
             Tip: after you run once, you can change X/Y without re-running.
           </p>
         </div>
