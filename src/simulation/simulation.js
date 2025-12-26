@@ -1,6 +1,6 @@
 // src/simulation.js
 import { Worker } from "./worker.js";
-import { Task } from "./task.js";
+import { createRandomTask } from "./task.js";
 import { Backlog } from "./backlog.js";
 import { ProductOwner } from "./po.js";
 import { samplePoisson, shuffleInPlace, mean } from "./utils.js";
@@ -75,7 +75,7 @@ function runSingleSimulation(cfg) {
 
   // Pre-fill backlog
   for (let i = 0; i < cfg.backlogSize; i++) {
-    backlog.addTask(Task.random(cfg));
+    backlog.addTask(createRandomTask(cfg));
   }
 
   // Workers
@@ -108,7 +108,7 @@ function runSingleSimulation(cfg) {
     // --------------------------------------------------------
     const arrivals = samplePoisson(cfg.envTaskRate ?? 0);
     for (let i = 0; i < arrivals; i++) {
-      backlog.addTask(Task.random(cfg));
+      backlog.addTask(createRandomTask(cfg));
       stats.totalTasksArrived++;
     }
 

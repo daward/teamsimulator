@@ -38,4 +38,27 @@ export class Backlog {
 
         return this.tasks.splice(idx, 1)[0];
     }
+
+    /**
+     * Allow an external policy (e.g., PO) to reorder the backlog in-place.
+     */
+    reorder(fn) {
+        if (typeof fn === "function") fn(this.tasks);
+    }
+
+    /**
+     * Evict tasks until size <= maxBacklogSize using a provided pick function.
+     */
+    evictExtra(maxBacklogSize, pickEvictionIndex, stats) {
+        if (maxBacklogSize == null || typeof pickEvictionIndex !== "function") return;
+        while (this.tasks.length > maxBacklogSize) {
+            const idx = pickEvictionIndex(this.tasks);
+            if (idx == null || idx < 0 || idx >= this.tasks.length) break;
+            const [evicted] = this.tasks.splice(idx, 1);
+            if (stats) {
+                stats.evictedTasks = (stats.evictedTasks || 0) + 1;
+                stats.evictedValue = (stats.evictedValue || 0) + evicted.value;
+            }
+        }
+    }
 }

@@ -38,6 +38,28 @@ export function randFloat(min, max) {
   return Math.random() * (max - min) + min;
 }
 
+export function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
+// Exponential-ish sampler around a mean, returning positive int >= 1 (approximate mean).
+export function samplePositiveInt(mean) {
+  const m = Math.max(0, mean ?? 0);
+  if (m <= 0) return 1;
+
+  const u = Math.max(1e-12, Math.random());
+  const exp01 = -Math.log(u); // mean 1
+  const x = exp01 * m;
+
+  return Math.max(1, Math.round(x));
+}
+
+export function sampleUniform(a, b) {
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return lo + (hi - lo) * Math.random();
+}
+
 // Simple weighted random choice from items: [{ item, weight }, ...]
 export function weightedRandomChoice(weightedItems) {
   let total = 0;
