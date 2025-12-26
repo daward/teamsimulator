@@ -41,6 +41,7 @@ function loadBaseConfig() {
     askProb: 0.3,
     askMinGain: 0.0,
     absenceProb: 0.05,
+    turnoverProb: 0.0,
     numCycles: 10000,
     burnInCycles: 0,
     logEvery: 0,
@@ -319,6 +320,5 @@ function main() {
 }
 
 main();
-
 
 

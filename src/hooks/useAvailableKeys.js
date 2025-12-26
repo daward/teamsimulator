@@ -74,6 +74,10 @@ export function useAvailableKeys({
   const availableParams = useMemo(() => {
     const keys = new Set(Object.keys(cfgObj || {}));
 
+    // ensure some common params are present even if missing in cfg text
+    const paramExtras = ["turnoverProb"];
+    paramExtras.forEach((k) => keys.add(k));
+
     // Allow sweeping presets: preset:<groupId>
     for (const g of presetGroups || []) {
       if (g?.id) keys.add(`preset:${g.id}`);

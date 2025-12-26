@@ -230,6 +230,16 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
               help="Minimum believed knowledge gap required to ask."
             />
             <NumberField
+              label="Turnover probability"
+              field="turnoverProb"
+              value={cfg.turnoverProb}
+              onChange={updateField}
+              min={0}
+              max={1}
+              step={0.01}
+              help="Chance a worker is replaced (knowledge resets)."
+            />
+            <NumberField
               label="Absence probability"
               field="absenceProb"
               value={cfg.absenceProb}

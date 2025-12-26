@@ -9,6 +9,7 @@
   "askProb": 0.5,
   "askMinGain": 0.05,
   "absenceProb": 0.05,
+  "turnoverProb": 0.02,
 
   "numCycles": 10000,
   "burnInCycles": 2000,

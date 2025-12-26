@@ -46,7 +46,9 @@ function makeInitialStats() {
 
     // Knowledge gain tracking
     conversationExperienceGain: 0,
-    completionExperienceGain: 0
+    completionExperienceGain: 0,
+
+    turnovers: 0
   };
 }
 
@@ -134,6 +136,19 @@ function runSingleSimulation(cfg) {
     // --------------------------------------------------------
     for (const w of workers) {
       w.isAbsent = Math.random() < (cfg.absenceProb ?? 0);
+    }
+
+    // --------------------------------------------------------
+    // 3b. TURNOVER: wipe knowledge/beliefs (new hire)
+    // --------------------------------------------------------
+    const turnoverProb = cfg.turnoverProb ?? 0;
+    if (turnoverProb > 0) {
+      for (const w of workers) {
+        if (Math.random() < turnoverProb) {
+          w.resetKnowledgeAndBeliefs();
+          stats.turnovers++;
+        }
+      }
     }
 
     // --------------------------------------------------------

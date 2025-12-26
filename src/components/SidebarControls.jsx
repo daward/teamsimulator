@@ -23,6 +23,7 @@ function buildScatterAxisOptions(availableMetricKeys) {
     "askProb",
     "completionLearningRate",
     "conversationLearningRate",
+    "turnoverProb",
     "numCycles",
     "burnInCycles",
     "poErrorProb",

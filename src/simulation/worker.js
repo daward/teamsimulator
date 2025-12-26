@@ -114,6 +114,16 @@ export class Worker {
     }
   }
 
+  resetKnowledgeAndBeliefs() {
+    this.knowledge = {};
+    this.beliefsByTopic = {};
+    this.touchedTopicThisCycle = null;
+    this.currentTask = null;
+    this.phase = null;
+    this.remainingInfo = 0;
+    this.remainingImpl = 0;
+  }
+
   getBelief(topic, workerId) {
     if (workerId === this.id) return 0; // never believe "me"
     return this.beliefsByTopic?.[topic]?.[workerId] ?? 0;
