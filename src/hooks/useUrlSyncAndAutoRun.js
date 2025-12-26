@@ -7,6 +7,9 @@ import {
   parseConfigText,
 } from "../controllers/buildRunRequests";
 
+// Prevent double autoruns in StrictMode remounts, but still allow new page loads.
+let lastAutoRunKey = null;
+
 /**
  * Fixes:
  * - auto-run firing before hydrated state is applied (applyUrlState is async)
@@ -31,12 +34,15 @@ export function useUrlSyncAndAutoRun({
   xValuesText,
   seriesParam,
   seriesValuesText,
+  scatterN,
+  scatterUnitKeys,
 
   // sim controls
   running,
   runSingle,
   runSweep1D,
   runSweep2D,
+  runScatter,
 }) {
   const didHydrateRef = useRef(false);
   const skipNextUrlWriteRef = useRef(false);
@@ -44,11 +50,7 @@ export function useUrlSyncAndAutoRun({
   const loadedFromUrlRef = useRef(false);
   const savedUrlStateRef = useRef(null);
 
-  // A stable key that survives StrictMode remounts for the *same* URL load.
-  // Using the raw query string keeps this simple and deterministic.
-  const autoRunSessionKey = useMemo(() => {
-    return `simui:autorun:${window.location.search || ""}`;
-  }, []);
+  const autoRunKey = useMemo(() => window.location.search || "__no_search__", []);
 
   // 1) Hydrate once
   useEffect(() => {
@@ -138,6 +140,15 @@ export function useUrlSyncAndAutoRun({
         return false;
     }
 
+    if (saved.mode === "scatter") {
+      if (typeof saved.scatterN === "number" && saved.scatterN !== scatterN) return false;
+      if (saved.scatterUnitKeys) {
+        const a = JSON.stringify(saved.scatterUnitKeys);
+        const b = JSON.stringify(scatterUnitKeys);
+        if (a !== b) return false;
+      }
+    }
+
     return true;
   };
 
@@ -153,13 +164,9 @@ export function useUrlSyncAndAutoRun({
     // This fixes the “autorun runs with defaults then never reruns” bug.
     if (!hydratedMatchesSaved()) return;
 
-    // StrictMode refresh guard:
-    // - on dev refresh, React mounts/remounts; refs reset
-    // - sessionStorage survives; use it to ensure autorun happens once per URL load
-    if (sessionStorage.getItem(autoRunSessionKey) === "1") return;
-
-    // Mark BEFORE starting, so even if something throws we don’t loop.
-    sessionStorage.setItem(autoRunSessionKey, "1");
+    // StrictMode guard: avoid running twice on remount with same URL
+    if (lastAutoRunKey === autoRunKey) return;
+    lastAutoRunKey = autoRunKey;
 
     const rawCfg = parseConfigText(configText, baseConfig);
 
@@ -194,6 +201,18 @@ export function useUrlSyncAndAutoRun({
       if (!req.xParam || !req.xValues?.length) return;
       if (!req.seriesParam || !req.seriesValues?.length) return;
       runSweep2D(req);
+      return;
+    }
+
+    if (mode === "scatter") {
+      const n = Number(scatterN);
+      if (!Number.isFinite(n) || n <= 0) return;
+      runScatter({
+        baseConfig: rawCfg,
+        presetSelections,
+        nOverride: n,
+        unitKeys: scatterUnitKeys,
+      });
     }
   }, [
     // dependencies that must be “settled” before we autorun
@@ -214,8 +233,9 @@ export function useUrlSyncAndAutoRun({
     runSingle,
     runSweep1D,
     runSweep2D,
-
-    // stable key
-    autoRunSessionKey,
+    runScatter,
+    scatterN,
+    scatterUnitKeys,
+    autoRunKey,
   ]);
 }

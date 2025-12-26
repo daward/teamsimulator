@@ -108,6 +108,11 @@ export default function App() {
     runSingle: sim.runSingle,
     runSweep1D: sim.runSweep1D,
     runSweep2D: sim.runSweep2D,
+    runScatter: sim.runScatter,
+
+    scatterN: app.scatterN,
+    scatterUnitKeys: app.scatterUnitKeys,
+    stopRunning: sim.stopRunning,
   });
 
   useEffect(() => {
@@ -156,6 +161,7 @@ export default function App() {
             onSetScatterColorQuantize={app.setScatterColorQuantize}
             scatterUnitKeys={app.scatterUnitKeys}
             onSetScatterUnitKeys={app.setScatterUnitKeys}
+            onStop={sim.stopRunning}
           />
         }
       />

@@ -166,6 +166,18 @@ export function useSimulation() {
     [post]
   );
 
+  const stopRunning = useCallback(() => {
+    setRunning(false);
+    setScatterProgress(null);
+    setSweep2DProgress(null);
+    if (workerRef.current) {
+      try {
+        workerRef.current.terminate();
+      } catch {}
+      workerRef.current = null;
+    }
+  }, []);
+
   return {
     running,
     error,
@@ -181,5 +193,6 @@ export function useSimulation() {
     runSweep1D,
     runSweep2D,
     runScatter,
+    stopRunning,
   };
 }

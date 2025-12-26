@@ -25,6 +25,7 @@ export default function MainPane({
   scatterUnitKeys,
   onSetScatterUnitKeys,
   plannedSweep2DRuns,
+  onStop,
 }) {
   const progress = sweep2DProgress || scatterProgress;
   const total = progress?.total ?? null;
@@ -44,11 +45,22 @@ export default function MainPane({
         <div className="chart-card">
           <div className="flex items-center justify-between text-sm font-semibold text-slate-900 dark:text-slate-50">
             <span>Running simulations{plannedLabel}...</span>
-            {hasDeterminate && (
-              <span>
-                {total ? `${done} / ${total}` : done} {pct != null ? `(${pct}%)` : ""}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {hasDeterminate && (
+                <span>
+                  {total ? `${done} / ${total}` : done} {pct != null ? `(${pct}%)` : ""}
+                </span>
+              )}
+              {onStop && (
+                <button
+                  className="text-xs px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 border border-slate-300 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600"
+                  onClick={onStop}
+                  type="button"
+                >
+                  Stop
+                </button>
+              )}
+            </div>
           </div>
           <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
             {hasDeterminate ? (
