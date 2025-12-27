@@ -11,6 +11,7 @@ export class Worker {
     this.remainingImpl = 0;
 
     this.isAbsent = false;
+    this.vacantUntil = null; // cycle index when a replacement arrives
 
     // topicId -> expertise (0..1)
     this.knowledge = {};
@@ -31,7 +32,8 @@ export class Worker {
       isAbsent: this.isAbsent,
       knowledge: this.knowledge,
       beliefsByTopic: this.beliefsByTopic,
-      touchedTopicThisCycle: this.touchedTopicThisCycle
+      touchedTopicThisCycle: this.touchedTopicThisCycle,
+      vacantUntil: this.vacantUntil
     };
   }
 
@@ -122,6 +124,44 @@ export class Worker {
     this.phase = null;
     this.remainingInfo = 0;
     this.remainingImpl = 0;
+    this.vacantUntil = null;
+  }
+
+  onboardFromTemplate(avgKnowledgeByTopic, cfg, numTopics) {
+    this.resetKnowledgeAndBeliefs();
+
+    const topics = Math.max(1, numTopics ?? 1);
+    const mode = cfg.turnoverHireMode || "average";
+    const avgFactor = Math.max(0, Math.min(1, cfg.turnoverHireAvgFactor ?? 0.8));
+    const specialistBoost = Math.max(0, cfg.turnoverSpecialistBoost ?? 0.25);
+
+    const specialistPenalty = mode === "specialist" ? 0.5 : 1;
+
+    // Default: mirror team average but scaled down (e.g., college hire)
+    for (let t = 0; t < topics; t++) {
+      const avg = avgKnowledgeByTopic?.[t] ?? 0;
+      this.setKnowledge(t, avg * avgFactor * specialistPenalty);
+    }
+
+    // Specialist mode: pick strongest topic (team avg) and boost it; others stay lower
+    if (mode === "specialist") {
+      let strongest = 0;
+      let strongestVal = avgKnowledgeByTopic?.[0] ?? 0;
+      for (let t = 1; t < topics; t++) {
+        const v = avgKnowledgeByTopic?.[t] ?? 0;
+        if (v > strongestVal) {
+          strongestVal = v;
+          strongest = t;
+        }
+      }
+      const baseStrong =
+        (avgKnowledgeByTopic?.[strongest] ?? 0) * avgFactor * specialistPenalty;
+      const boosted = Math.min(
+        1,
+        Math.max(baseStrong, (avgKnowledgeByTopic?.[strongest] ?? 0) * avgFactor + specialistBoost)
+      );
+      this.setKnowledge(strongest, boosted);
+    }
   }
 
   getBelief(topic, workerId) {

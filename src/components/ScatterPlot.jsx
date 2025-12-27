@@ -283,229 +283,230 @@ export default function ScatterPlot({
   const [activeBin, setActiveBin] = useState(null);
 
   return (
-    <div>
-      <h2 style={{ marginBottom: 8 }}>
-        Scatter ({mappedPoints.length} points)
-      </h2>
-
-      <div style={{ width: "100%", height: 520 }}>
-        <ResponsiveContainer>
-          <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 50 }}>
-            <CartesianGrid />
-            <XAxis
-              type="number"
-              dataKey="x"
-              tick={{ fontSize: 12 }}
-              label={{ value: xLabel, position: "bottom", offset: 12 }}
-            />
-            <YAxis
-              type="number"
-              dataKey="y"
-              tick={{ fontSize: 12 }}
-              label={{ value: yLabel, angle: -90, position: "left" }}
-            />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const p = payload[0]?.payload;
-                if (!p) return null;
-
-                const isDark =
-                  typeof document !== "undefined" &&
-                  document.documentElement.classList.contains("dark");
-                const tooltipStyle = {
-                  background: isDark ? "rgba(15,23,42,0.94)" : "#fff",
-                  color: isDark ? "#e5e7eb" : "#0f172a",
-                  border: isDark ? "1px solid #334155" : "1px solid #ccc",
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-                  padding: 8,
-                  borderRadius: 6,
-                  fontSize: 12,
-                  lineHeight: 1.4,
-                };
-
-                return (
-                  <div style={tooltipStyle}>
-                    <div style={{ marginBottom: 2 }}>
-                      <b>{xLabel}:</b> {p.x}
-                    </div>
-                    <div style={{ marginBottom: 2 }}>
-                      <b>{yLabel}:</b> {p.y}
-                    </div>
-                    {colorKey ? (
-                      <div>
-                        <b>{colorLabel}:</b>{" "}
-                        {Number.isFinite(p.colorValue) ? formatNumber(p.colorValue) : "n/a"}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              }}
-            />
-            <Scatter
-              data={mappedPoints}
-              shape={(props) => {
-                const { cx, cy, payload } = props;
-                const faded =
-                  activeBin != null && payload?.bin != null && payload.bin !== activeBin;
-                const fill = payload?.fill || "#888";
-                let opacity = 0.62;
-                if (activeBin != null) {
-                  opacity = faded ? 0.22 : 1;
-                }
-                const radius = 7;
-                return (
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={radius}
-                    fill={fill}
-                    fillOpacity={opacity}
-                    stroke="none"
-                  />
-                );
-              }}
-              isAnimationActive={false}
-            />
-          </ScatterChart>
-        </ResponsiveContainer>
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-0 dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-3 w-full rounded-t-lg bg-slate-100 px-4 py-2 text-center text-lg font-semibold text-slate-900 border-b border-slate-200 dark:bg-slate-700/80 dark:text-white dark:border-slate-600">
+        <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex-1 text-center">
+            <span>Scatter</span>
+            <span className="ml-2 text-sm font-normal text-slate-600 dark:text-slate-300">
+              ({mappedPoints.length} points)
+            </span>
+          </div>
+        </div>
       </div>
 
-      {colorKey ? (
-        <div className="mt-2 p-3 border border-slate-200 rounded-md bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <strong style={{ fontSize: 13 }}>Color by: {colorLabel}</strong>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              {onToggleColorQuantize && (
-                <label style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!colorQuantize}
-                    onChange={(e) => {
-                      setActiveBin(null);
-                      onToggleColorQuantize(e.target.checked);
-                    }}
-                  />
-                  Quantize
-                </label>
-              )}
-              {onSelectColorKey && (
-                <button
-                  style={{ fontSize: 11, padding: "3px 6px" }}
-                  onClick={() => {
-                    setActiveBin(null);
-                    onSelectColorKey("");
-                  }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-          {Number.isFinite(colorMin) && Number.isFinite(colorMax) ? (
-            <div className="mt-2">
-              {colorLegend ? (
-                <div className="flex flex-wrap gap-2">
-                  {colorLegend.map((bin, idx) => {
-                    const isActive = activeBin === bin.bin;
+      <div className="mb-2 px-4 text-sm text-slate-700 dark:text-slate-300">
+        <div className="px-4 pb-4 space-y-4">
+          <div className="h-[520px] w-full">
+            <ResponsiveContainer>
+              <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 50 }}>
+                <CartesianGrid />
+                <XAxis
+                  type="number"
+                  dataKey="x"
+                  tick={{ fontSize: 12 }}
+                  label={{ value: xLabel, position: "bottom", offset: 12 }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  tick={{ fontSize: 12 }}
+                  label={{ value: yLabel, angle: -90, position: "left" }}
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const p = payload[0]?.payload;
+                    if (!p) return null;
+
+                    const isDark =
+                      typeof document !== "undefined" &&
+                      document.documentElement.classList.contains("dark");
+                    const tooltipStyle = {
+                      background: isDark ? "rgba(15,23,42,0.94)" : "#fff",
+                      color: isDark ? "#e5e7eb" : "#0f172a",
+                      border: isDark ? "1px solid #334155" : "1px solid #ccc",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                      padding: 8,
+                      borderRadius: 6,
+                      fontSize: 12,
+                      lineHeight: 1.4,
+                    };
+
                     return (
-                      <button
-                        key={idx}
-                        onClick={() => setActiveBin(isActive ? null : bin.bin)}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-sm transition ${
-                          isActive
-                            ? "border-indigo-400 bg-indigo-500/20 text-slate-900 dark:text-slate-100"
-                            : "border-slate-300 bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
-                        }`}
-                      >
-                        <span
-                          className="inline-block w-4 h-3 rounded border border-slate-200"
-                          style={{ background: bin.color }}
-                        />
-                        <span>
-                          {formatNumber(bin.min)} - {formatNumber(bin.max)}
-                        </span>
-                      </button>
+                      <div style={tooltipStyle}>
+                        <div style={{ marginBottom: 2 }}>
+                          <b>{xLabel}:</b> {p.x}
+                        </div>
+                        <div style={{ marginBottom: 2 }}>
+                          <b>{yLabel}:</b> {p.y}
+                        </div>
+                        {colorKey ? (
+                          <div>
+                            <b>{colorLabel}:</b>{" "}
+                            {Number.isFinite(p.colorValue) ? formatNumber(p.colorValue) : "n/a"}
+                          </div>
+                        ) : null}
+                      </div>
                     );
-                  })}
-                </div>
-              ) : (
-                <>
-                  <div className="h-2 rounded bg-gradient-to-r from-[hsl(220,80%,80%)] to-[hsl(220,80%,40%)]" />
-                  <div className="flex justify-between text-xs mt-1 text-slate-700 dark:text-slate-200">
-                    <span>{formatNumber(colorMin)}</span>
-                    <span>{formatNumber(colorMax)}</span>
+                  }}
+                />
+                <Scatter
+                  data={mappedPoints}
+                  shape={(props) => {
+                    const { cx, cy, payload } = props;
+                    const faded =
+                      activeBin != null && payload?.bin != null && payload.bin !== activeBin;
+                    const fill = payload?.fill || "#888";
+                    let opacity = 0.62;
+                    if (activeBin != null) {
+                      opacity = faded ? 0.22 : 1;
+                    }
+                    const radius = 7;
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={radius}
+                        fill={fill}
+                        fillOpacity={opacity}
+                        stroke="none"
+                      />
+                    );
+                  }}
+                  isAnimationActive={false}
+                />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {colorKey ? (
+          <div className="mt-2 p-3 border border-slate-200 rounded-md bg-slate-100 dark:bg-slate-600 dark:border-slate-900">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <strong style={{ fontSize: 13 }}>Color by: {colorLabel}</strong>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {onToggleColorQuantize && (
+                  <label style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!colorQuantize}
+                      onChange={(e) => {
+                        setActiveBin(null);
+                        onToggleColorQuantize(e.target.checked);
+                      }}
+                    />
+                    Quantize
+                  </label>
+                )}
+                {onSelectColorKey && (
+                  <button
+                    style={{ fontSize: 11, padding: "3px 6px" }}
+                    onClick={() => {
+                      setActiveBin(null);
+                      onSelectColorKey("");
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+            {Number.isFinite(colorMin) && Number.isFinite(colorMax) ? (
+              <div className="mt-2">
+                {colorLegend ? (
+                  <div className="flex flex-wrap gap-2">
+                    {colorLegend.map((bin, idx) => {
+                      const isActive = activeBin === bin.bin;
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => setActiveBin(isActive ? null : bin.bin)}
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-sm transition ${isActive
+                              ? "border-indigo-400 bg-indigo-500/20 text-slate-900 dark:text-slate-100"
+                              : "border-slate-300 bg-white text-slate-800 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
+                            }`}
+                        >
+                          <span
+                            className="inline-block w-4 h-3 rounded border border-slate-200"
+                            style={{ background: bin.color }}
+                          />
+                          <span>
+                            {formatNumber(bin.min)} - {formatNumber(bin.max)}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                </>
-              )}
+                ) : (
+                  <>
+                    <div className="h-2 rounded bg-gradient-to-r from-[hsl(220,80%,80%)] to-[hsl(220,80%,40%)]" />
+                    <div className="flex justify-between text-xs mt-1 text-slate-700 dark:text-slate-200">
+                      <span>{formatNumber(colorMin)}</span>
+                      <span>{formatNumber(colorMax)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
+                No numeric values for this color key.
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 16 }}>
+          {correlations.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#666" }}>
+              No correlation data (need numeric target present in scatter points).
             </div>
           ) : (
-            <div style={{ marginTop: 6, fontSize: 12, color: "#666" }}>
-              No numeric values for this color key.
+            <div className="overflow-hidden border border-slate-200 rounded-md dark:border-slate-700">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-slate-100 dark:bg-slate-700">
+                  <tr>
+                    <th className="text-left px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                      Feature
+                    </th>
+                    <th className="text-right px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                      Correlation value
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {correlations.map((row) => {
+                    const isActive = xAxisKey === row.key;
+                    const rowBg = correlationBg(row.r, isActive);
+                    return (
+                      <tr
+                        key={row.key}
+                        className="cursor-pointer"
+                        style={{ background: rowBg }}
+                        onClick={() => {
+                          if (onSelectXAxis) onSelectXAxis(row.key);
+                        }}
+                      >
+                        <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                          {row.label}
+                        </td>
+                        <td
+                          className="px-3 py-2 text-right border-b border-slate-100 dark:border-slate-800"
+                          style={{
+                            color: correlationColor(row.r),
+                            fontWeight: Math.abs(row.r) >= 0.5 ? 700 : 500,
+                          }}
+                        >
+                          {formatNumber(row.r)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
-      ) : null}
-
-      <div style={{ marginTop: 16 }}>
-        <h3 style={{ marginBottom: 6 }}>
-          Correlations (target: {targetLabel})
-        </h3>
-        {correlations.length === 0 ? (
-          <div style={{ fontSize: 13, color: "#666" }}>
-            No correlation data (need numeric target present in scatter points).
-          </div>
-        ) : (
-          <div className="overflow-hidden border border-slate-200 rounded-md dark:border-slate-700">
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-slate-100 dark:bg-slate-800">
-                <tr>
-                  <th className="text-left px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
-                    Feature
-                  </th>
-                  <th className="text-right px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
-                    r
-                  </th>
-                  <th className="text-right px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
-                    n
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {correlations.map((row) => {
-                  const isActive = xAxisKey === row.key;
-                  const rowBg = correlationBg(row.r, isActive);
-                  return (
-                    <tr
-                      key={row.key}
-                      className="cursor-pointer"
-                      style={{ background: rowBg }}
-                      onClick={() => {
-                        if (onSelectXAxis) onSelectXAxis(row.key);
-                      }}
-                    >
-                      <td className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
-                        {row.label}
-                      </td>
-                      <td
-                        className="px-3 py-2 text-right border-b border-slate-100 dark:border-slate-800"
-                        style={{
-                          color: correlationColor(row.r),
-                          fontWeight: Math.abs(row.r) >= 0.5 ? 700 : 500,
-                        }}
-                      >
-                        {formatNumber(row.r)}
-                      </td>
-                      <td className="px-3 py-2 text-right border-b border-slate-100 dark:border-slate-800">
-                        {row.n}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );

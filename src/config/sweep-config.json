@@ -13,6 +13,9 @@
     "u_convoLearn": { "target": "conversationLearningRate", "min": 0.0, "max": 1.0, "type": "float" },
     "u_askMinGain": { "target": "askMinGain", "min": 0.0, "max": 0.5, "type": "float" },
     "u_turnover": { "target": "turnoverProb", "min": 0.0, "max": 0.5, "type": "float" },
+    "u_turnoverLag": { "target": "turnoverHireLag", "min": 0, "max": 20, "type": "int" },
+    "u_turnoverAvgFactor": { "target": "turnoverHireAvgFactor", "min": 0.4, "max": 1.0, "type": "float" },
+    "u_turnoverSpecialistBoost": { "target": "turnoverSpecialistBoost", "min": 0.0, "max": 0.6, "type": "float" },
     "u_infoImpl": { "target": "infoToImplRatio", "type": "ratio" }
   }
 }

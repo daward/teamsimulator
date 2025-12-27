@@ -64,7 +64,7 @@
   }
 
   .form-panel {
-    @apply border border-slate-200 rounded-md bg-white p-3 space-y-3 shadow-sm dark:bg-slate-900 dark:border-slate-700;
+    @apply border border-slate-200 rounded-md bg-white/90 p-3 space-y-3 shadow-sm dark:bg-slate-900/75 dark:border-slate-700;
   }
 
   .nested-panel {

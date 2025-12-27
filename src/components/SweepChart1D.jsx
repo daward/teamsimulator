@@ -71,12 +71,12 @@ export default function SweepChart1D({ sweep, metricSpec }) {
   }, [chartData]);
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <h2 style={{ margin: 0 }}>
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-0 dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-3 w-full rounded-t-lg bg-slate-100 px-4 py-2 text-center text-lg font-semibold text-slate-900 border-b border-slate-200 dark:bg-slate-700/80 dark:text-white dark:border-slate-600">
         {label} vs {paramName}
-      </h2>
+      </div>
 
-      <div style={{ marginTop: 8 }}>
+      <div className="flex justify-center">
         <LineChart
           width={820}
           height={380}

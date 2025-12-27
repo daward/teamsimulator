@@ -75,7 +75,13 @@ export function useAvailableKeys({
     const keys = new Set(Object.keys(cfgObj || {}));
 
     // ensure some common params are present even if missing in cfg text
-    const paramExtras = ["turnoverProb"];
+    const paramExtras = [
+      "turnoverProb",
+      "turnoverHireLag",
+      "turnoverHireAvgFactor",
+      "turnoverSpecialistBoost",
+      "turnoverHireMode",
+    ];
     paramExtras.forEach((k) => keys.add(k));
 
     // Allow sweeping presets: preset:<groupId>

@@ -61,6 +61,14 @@ function TextField({ label, field, value, onChange, help }) {
   );
 }
 
+const defaultFallbacks = {
+  turnoverProb: 0.02,
+  turnoverHireLag: 5,
+  turnoverHireAvgFactor: 0.8,
+  turnoverHireMode: "average",
+  turnoverSpecialistBoost: 0.25,
+};
+
 export default function ConfigPanel({ configText, onConfigTextChange }) {
   let cfg = null;
   let parseError = null;
@@ -76,10 +84,18 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
     onConfigTextChange(JSON.stringify(next, null, 2));
   };
 
+  const getVal = (field, fallback) => {
+    if (!cfg || cfg[field] === undefined || cfg[field] === null) {
+      if (defaultFallbacks[field] !== undefined) return defaultFallbacks[field];
+      return fallback ?? "";
+    }
+    return cfg[field];
+  };
+
   return (
     <div>
       <h3 style={{ marginTop: 8 }}>Base Simulation Config</h3>
-      <p style={{ fontSize: 12, marginTop: 0 }}>
+      <p style={{ fontSize: 12, marginTop: 0, marginBottom: 8 }}>
         These parameters define the default world for all runs. Presets patch
         some of these; sweeps override individual fields on top.
       </p>
@@ -102,12 +118,12 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
       )}
 
       {cfg && (
-        <>
-          {/* BUSINESS ENVIRONMENT */}
-          <fieldset className="form-panel">
-            <legend style={{ fontSize: 12, fontWeight: "bold" }}>
-              Business environment (demand &amp; value)
-            </legend>
+    <div className="space-y-5 px-1">
+      {/* BUSINESS ENVIRONMENT */}
+      <fieldset className="form-panel mt-2">
+        <legend style={{ fontSize: 12, fontWeight: "bold" }}>
+          Business environment (demand &amp; value)
+        </legend>
 
             <NumberField
               label="Rate of new tasks"
@@ -167,8 +183,8 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
             />
           </fieldset>
 
-          {/* DEVELOPERS / TEAM */}
-          <fieldset className="form-panel">
+      {/* DEVELOPERS / TEAM */}
+      <fieldset className="form-panel">
             <legend style={{ fontSize: 12, fontWeight: "bold" }}>
               Developers / team behavior
             </legend>
@@ -212,7 +228,7 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
             <NumberField
               label="Ask probability"
               field="askProb"
-              value={cfg.askProb}
+              value={cfg.askProb ?? defaultFallbacks.askProb ?? ""}
               onChange={updateField}
               min={0}
               max={1}
@@ -222,22 +238,12 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
             <NumberField
               label="Ask minimum gain"
               field="askMinGain"
-              value={cfg.askMinGain}
+              value={cfg.askMinGain ?? defaultFallbacks.askMinGain ?? ""}
               onChange={updateField}
               min={0}
               max={0.5}
               step={0.01}
               help="Minimum believed knowledge gap required to ask."
-            />
-            <NumberField
-              label="Turnover probability"
-              field="turnoverProb"
-              value={cfg.turnoverProb}
-              onChange={updateField}
-              min={0}
-              max={1}
-              step={0.01}
-              help="Chance a worker is replaced (knowledge resets)."
             />
             <NumberField
               label="Absence probability"
@@ -279,17 +285,63 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
               step={0.01}
               help="How much implementation work improves knowledge."
             />
-            <TextField
-              label="Help strategy"
-              field="helpStrategy"
-              value={cfg.helpStrategy}
+          </fieldset>
+
+      {/* TEAM MANAGEMENT / TURNOVER */}
+      <fieldset className="form-panel">
+            <legend style={{ fontSize: 12, fontWeight: "bold" }}>
+              Team management &amp; turnover
+            </legend>
+            <NumberField
+              label="Turnover probability"
+              field="turnoverProb"
+              value={getVal("turnoverProb")}
               onChange={updateField}
-              help='Strategy identifier (e.g. "expert").'
+              min={0}
+              max={1}
+              step={0.01}
+              help="Chance a worker is replaced (knowledge resets)."
+            />
+            <NumberField
+              label="Turnover hire lag"
+              field="turnoverHireLag"
+              value={getVal("turnoverHireLag")}
+              onChange={updateField}
+              min={0}
+              step={1}
+              help="Cycles to backfill after a departure."
+            />
+            <NumberField
+              label="Hire avg factor"
+              field="turnoverHireAvgFactor"
+              value={getVal("turnoverHireAvgFactor")}
+              onChange={updateField}
+              min={0}
+              max={1}
+              step={0.05}
+              help="New hire starts at this fraction of team avg."
+            />
+            <NumberField
+              label="Specialist boost"
+              field="turnoverSpecialistBoost"
+              value={getVal("turnoverSpecialistBoost")}
+              onChange={updateField}
+              min={0}
+              max={1}
+              step={0.05}
+              help="If specialist mode, boost strongest topic by this (other topics start lower)."
+            />
+            <TextField
+              label="Hire mode"
+              field="turnoverHireMode"
+              value={getVal("turnoverHireMode")}
+              onChange={updateField}
+              help='"average" or "specialist" for new hires.'
             />
           </fieldset>
 
-          {/* PRODUCT OWNER */}
-          <fieldset className="form-panel">
+      {/* PRODUCT OWNER */}
+      <fieldset className="form-panel">
             <legend style={{ fontSize: 12, fontWeight: "bold" }}>
               Product Owner &amp; backlog policy
             </legend>
@@ -334,11 +386,11 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
             />
           </fieldset>
 
-          {/* SIMULATION ENGINE */}
-          <fieldset className="form-panel">
-            <legend style={{ fontSize: 12, fontWeight: "bold" }}>
-              Simulation engine
-            </legend>
+      {/* SIMULATION ENGINE */}
+      <fieldset className="form-panel">
+        <legend style={{ fontSize: 12, fontWeight: "bold" }}>
+          Simulation engine
+        </legend>
 
             <NumberField
               label="Number of cycles"
@@ -368,7 +420,7 @@ export default function ConfigPanel({ configText, onConfigTextChange }) {
               help="Logging cadence for Node version."
             />
           </fieldset>
-        </>
+        </div>
       )}
 
       {/* Raw JSON for power users / debugging */}

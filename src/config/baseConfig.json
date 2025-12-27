@@ -10,6 +10,10 @@
   "askMinGain": 0.05,
   "absenceProb": 0.05,
   "turnoverProb": 0.02,
+  "turnoverHireLag": 5,
+  "turnoverHireAvgFactor": 0.8,
+  "turnoverHireMode": "average",
+  "turnoverSpecialistBoost": 0.25,
 
   "numCycles": 10000,
   "burnInCycles": 2000,

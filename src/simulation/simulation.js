@@ -39,6 +39,7 @@ function makeInitialStats() {
 
     teamProductivity: 0,
     workerProductivity: 0,
+    activeWorkerCycles: 0,
 
     // final expertise scalars (0..1)
     finalTeamAvgExpertise: 0,
@@ -52,9 +53,67 @@ function makeInitialStats() {
   };
 }
 
+function flattenConfig(cfg) {
+  if (!cfg || typeof cfg !== "object") return {};
+  const out = { ...cfg };
+
+  const pick = (path) =>
+    path.reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), cfg);
+
+  const map = [
+    [["environment", "newTaskRate"], "envTaskRate"],
+    [["environment", "avgTaskValue"], "avgValue"],
+    [["environment", "retentionMin"], "taskRetentionMin"],
+    [["environment", "retentionMax"], "taskRetentionMax"],
+    [["backlog", "initialSize"], "backlogSize"],
+    [["backlog", "maxSize"], "maxBacklogSize"],
+    [["team", "size"], "numWorkers"],
+    [["team", "numTaskTypes"], "numTaskTypes"],
+    [["tasks", "avgInfoTime"], "avgInfoTime"],
+    [["tasks", "avgImplTime"], "avgImplTime"],
+    [["behavior", "askProbability"], "askProb"],
+    [["behavior", "askMinimumGain"], "askMinGain"],
+    [["behavior", "absenceProbability"], "absenceProb"],
+    [["behavior", "knowledgeDecayRate"], "knowledgeDecayRate"],
+    [["behavior", "completionLearningRate"], "completionLearningRate"],
+    [["behavior", "conversationLearningRate"], "conversationLearningRate"],
+    [["productOwner", "windowSize"], "poWindowSize"],
+    [["productOwner", "actionsPerCycle"], "poActionsPerCycle"],
+    [["productOwner", "absenceProbability"], "poAbsenceProb"],
+    [["productOwner", "errorProbability"], "poErrorProb"],
+    [["turnover", "probability"], "turnoverProb"],
+    [["turnover", "hireLag"], "turnoverHireLag"],
+    [["turnover", "hireAvgFactor"], "turnoverHireAvgFactor"],
+    [["turnover", "hireMode"], "turnoverHireMode"],
+    [["turnover", "specialistBoost"], "turnoverSpecialistBoost"],
+    [["belief", "updateRate"], "beliefUpdateRate"],
+    [["belief", "initMax"], "beliefInitMax"],
+    [["simulation", "numCycles"], "numCycles"],
+    [["simulation", "burnInCycles"], "burnInCycles"],
+    [["simulation", "logEvery"], "logEvery"],
+    [["simulation", "replicates"], "replicates"],
+  ];
+
+  for (const [path, target] of map) {
+    const v = pick(path);
+    if (v !== undefined) out[target] = v;
+  }
+
+  return out;
+}
+
 function finalizeStats(stats, workers, cfg) {
   stats.teamProductivity = stats.cumulativeRecurringValue / cfg.numCycles;
-  stats.workerProductivity = stats.teamProductivity / cfg.numWorkers;
+  const avgActiveWorkers = stats.activeWorkerCycles / cfg.numCycles;
+  stats.workerProductivity =
+    avgActiveWorkers > 0 ? stats.teamProductivity / avgActiveWorkers : 0;
+  // Hierarchical/stat aliases for clarity
+  stats["productivity:team"] = stats.teamProductivity;
+  stats["productivity:worker"] = stats.workerProductivity;
+  stats.productivity = {
+    team: stats.teamProductivity,
+    worker: stats.workerProductivity,
+  };
 
   stats.finalTeamAvgExpertise = computeFinalTeamAvgExpertise(workers, cfg.numTaskTypes);
   stats.finalTeamAvgMaxExpertisePerTopic = computeFinalTeamAvgMaxExpertisePerTopic(
@@ -66,6 +125,28 @@ function finalizeStats(stats, workers, cfg) {
      (stats.conversationExperienceGain ?? 0) + (stats.completionExperienceGain ?? 0);
    stats.conversationExperienceShare =
      totalGain > 0 ? stats.conversationExperienceGain / totalGain : 0;
+}
+
+function computeAvgKnowledgeByTopic(workers, numTopics) {
+  const topics = Math.max(1, numTopics ?? 1);
+  const sums = new Array(topics).fill(0);
+  const counts = new Array(topics).fill(0);
+
+  for (const w of workers) {
+    for (let t = 0; t < topics; t++) {
+      const v = w.knowledge?.[t];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        sums[t] += v;
+        counts[t] += 1;
+      }
+    }
+  }
+
+  const avg = new Array(topics).fill(0);
+  for (let t = 0; t < topics; t++) {
+    avg[t] = counts[t] > 0 ? sums[t] / counts[t] : 0;
+  }
+  return avg;
 }
 
 function runSingleSimulation(cfg) {
@@ -105,6 +186,20 @@ function runSingleSimulation(cfg) {
   // ------------------------------------------------------------
 
   for (let cycle = 0; cycle < cfg.numCycles; cycle++) {
+    // Handle vacancies: onboard new hires whose lag has expired
+    for (const w of workers) {
+      if (w.vacantUntil != null && cycle >= w.vacantUntil) {
+        const avgKnowledgeByTopic = computeAvgKnowledgeByTopic(
+          workers.filter((p) => p !== w),
+          cfg.numTaskTypes
+        );
+        w.onboardFromTemplate(avgKnowledgeByTopic, cfg, cfg.numTaskTypes);
+        if (typeof w.initBeliefsForTopics === "function") {
+          w.initBeliefsForTopics(cfg.numTaskTypes, workers);
+        }
+      }
+    }
+
     // --------------------------------------------------------
     // 1. ENVIRONMENTAL TASK ARRIVAL (Poisson)
     // --------------------------------------------------------
@@ -135,21 +230,20 @@ function runSingleSimulation(cfg) {
     // 3. WORKER ABSENCES
     // --------------------------------------------------------
     for (const w of workers) {
+      if (w.vacantUntil != null && w.vacantUntil > cycle) {
+        w.isAbsent = true;
+        continue;
+      }
       w.isAbsent = Math.random() < (cfg.absenceProb ?? 0);
     }
 
-    // --------------------------------------------------------
-    // 3b. TURNOVER: wipe knowledge/beliefs (new hire)
-    // --------------------------------------------------------
-    const turnoverProb = cfg.turnoverProb ?? 0;
-    if (turnoverProb > 0) {
-      for (const w of workers) {
-        if (Math.random() < turnoverProb) {
-          w.resetKnowledgeAndBeliefs();
-          stats.turnovers++;
-        }
-      }
+    // Track active (present and non-vacant) workers for per-worker productivity
+    let activeThisCycle = 0;
+    for (const w of workers) {
+      const isVacant = w.vacantUntil != null && w.vacantUntil > cycle;
+      if (!w.isAbsent && !isVacant) activeThisCycle += 1;
     }
+    stats.activeWorkerCycles += activeThisCycle;
 
     // --------------------------------------------------------
     // 4. WORKER TASK ASSIGNMENT
@@ -286,6 +380,16 @@ function runSingleSimulation(cfg) {
           }
 
           stats.completedTasksThisCycle.push(t);
+
+          // Turnover check happens at task completion
+          const turnoverProb = cfg.turnoverProb ?? 0;
+          if (turnoverProb > 0 && Math.random() < turnoverProb) {
+            w.resetKnowledgeAndBeliefs();
+            const lag = Math.max(0, Math.floor(cfg.turnoverHireLag ?? 0));
+            w.vacantUntil = cycle + lag;
+            stats.turnovers++;
+          }
+
           w.clearTask();
         }
 
@@ -322,6 +426,7 @@ function runSingleSimulation(cfg) {
  * If cfg.replicates > 1, returns aggregate stats (mean only) and one sample run.
  */
 export function runSimulation(cfg) {
+  cfg = flattenConfig(cfg);
   const reps = Math.max(1, Math.floor(cfg.replicates ?? 20));
 
   if (reps === 1) {

@@ -15,7 +15,7 @@ export function parseConfigText(configText, baseConfig) {
 }
 
 /**
- * Expand "*" for preset group sweeps; otherwise return comma-split trimmed list.
+ * Expand "*" for preset group sweeps or known enums; otherwise return comma-split trimmed list.
  * Keeps values as strings; sweep runner can coerce where appropriate.
  */
 export function expandSweepValues(paramName, valuesText, presetGroups) {
@@ -31,6 +31,13 @@ export function expandSweepValues(paramName, valuesText, presetGroups) {
     return group.presets
       .filter((p) => p.patch && Object.keys(p.patch).length > 0)
       .map((p) => p.id);
+  }
+
+  // Enumerated fields that should sweep all options with "*"
+  if (parts.length === 1 && parts[0] === "*") {
+    if (paramName === "turnoverHireMode") {
+      return ["average", "specialist"];
+    }
   }
 
   return parts;

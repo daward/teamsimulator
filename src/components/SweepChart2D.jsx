@@ -58,7 +58,6 @@ function correlationBg(r, isActive) {
 export default function SweepChart2D({ sweep, metricSpec }) {
   const [viewMode, setViewMode] = useState("absolute");
   const [activeSeries, setActiveSeries] = useState(null);
-  // "absolute" | "delta" | "percent"
 
   if (!sweep) return null;
 
@@ -104,7 +103,7 @@ export default function SweepChart2D({ sweep, metricSpec }) {
         .map((k) => row[k])
         .filter((v) => typeof v === "number" && Number.isFinite(v));
 
-      const mean =
+      const m =
         values.length > 0
           ? values.reduce((a, b) => a + b, 0) / values.length
           : 0;
@@ -116,8 +115,8 @@ export default function SweepChart2D({ sweep, metricSpec }) {
           out[k] = null;
           continue;
         }
-        if (viewMode === "delta") out[k] = y - mean;
-        if (viewMode === "percent") out[k] = mean === 0 ? null : (y - mean) / mean;
+        if (viewMode === "delta") out[k] = y - m;
+        if (viewMode === "percent") out[k] = m === 0 ? null : (y - m) / m;
       }
       return out;
     });
@@ -162,18 +161,17 @@ export default function SweepChart2D({ sweep, metricSpec }) {
     return v.toFixed(6);
   };
 
-  // High-contrast palette (multi-hue) for clear separation
   const colors = [
-    "#2563eb", // blue
-    "#ef4444", // red
-    "#f97316", // orange
-    "#22c55e", // green
-    "#7c3aed", // purple
-    "#14b8a6", // teal
-    "#ec4899", // pink/magenta
-    "#84cc16", // lime
-    "#f59e0b", // amber
-    "#0ea5e9", // cyan
+    "#2563eb",
+    "#ef4444",
+    "#f97316",
+    "#22c55e",
+    "#7c3aed",
+    "#14b8a6",
+    "#ec4899",
+    "#84cc16",
+    "#f59e0b",
+    "#0ea5e9",
   ];
 
   const correlations = useMemo(() => {
@@ -205,7 +203,6 @@ export default function SweepChart2D({ sweep, metricSpec }) {
     return rows;
   }, [results, seriesKeys, metricSpec]);
 
-  // Variation explained: how much variance is due to series vs x (simple variance decomposition)
   const varianceSummary = useMemo(() => {
     if (!results?.length) return null;
 
@@ -258,99 +255,87 @@ export default function SweepChart2D({ sweep, metricSpec }) {
   }, [results, metricSpec]);
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 12,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>
-          {label} vs {xParam} (series: {seriesParam})
-        </h2>
-
-        <div style={{ fontSize: 12 }}>
-          <label>
-            View:&nbsp;
-            <select value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+    <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-0 dark:border-slate-700 dark:bg-slate-800">
+      <div className="mb-3 w-full rounded-t-lg bg-slate-100 px-4 py-2 text-center text-lg font-semibold text-slate-900 border-b border-slate-200 dark:bg-slate-700/80 dark:text-white dark:border-slate-600">
+        <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex-1 text-center">
+            {label} vs {xParam} (series: {seriesParam})
+          </div>
+          <div className="flex items-center justify-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <span>View:</span>
+            <select
+              className="select-field w-auto"
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value)}
+            >
               <option value="absolute">Absolute</option>
               <option value="delta">Δ from avg at X</option>
               <option value="percent">% from avg at X</option>
             </select>
-          </label>
+          </div>
         </div>
       </div>
+      <div className="mb-2 px-4 text-sm text-slate-700 dark:text-slate-300">
+        <div className="flex justify-center mb-4">
+          <LineChart
+            width={820}
+            height={380}
+            data={transformed}
+            margin={{ top: 20, right: 20, bottom: 30, left: 80 }}
+          >
+            <CartesianGrid />
+            <XAxis
+              dataKey="x"
+              type={isNumericX ? "number" : "category"}
+              label={{ value: xParam, position: "insideBottom", dy: 10 }}
+            />
+            <YAxis
+              tickFormatter={yTickFormatter}
+              domain={yDomain}
+              width={90}
+              label={{
+                value:
+                  viewMode === "absolute"
+                    ? label
+                    : viewMode === "delta"
+                      ? `${label} (Δ vs avg at X)`
+                      : `${label} (% vs avg at X)`,
+                angle: -90,
+                position: "left",
+                offset: 10,
+                style: { textAnchor: "middle" },
+              }}
+            />
+            <Tooltip
+              formatter={(v) => tooltipFormatter(v)}
+              labelFormatter={(l) => `${xParam} = ${l}`}
+            />
+            {viewMode !== "absolute" && (
+              <ReferenceLine y={0} stroke="#999" strokeDasharray="4 4" />
+            )}
+            {seriesKeys.map((key, idx) => {
+              const color = colors[idx % colors.length];
+              const faded = activeSeries && activeSeries !== key;
+              const opacity = faded ? 0.35 : 1;
+              return (
+                <Line
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  dot={{ r: 3, stroke: color, fill: color, fillOpacity: opacity, strokeOpacity: opacity }}
+                  stroke={color}
+                  strokeOpacity={opacity}
+                  strokeWidth={2.2}
+                  connectNulls={false}
+                />
+              );
+            })}
+          </LineChart>
+        </div>
 
-      <div style={{ marginTop: 8 }}>
-        <LineChart
-          width={820}
-          height={380}
-          data={transformed}
-          margin={{ top: 20, right: 20, bottom: 30, left: 80 }}
-        >
-          <CartesianGrid />
-          <XAxis
-            dataKey="x"
-            type={isNumericX ? "number" : "category"}
-            label={{ value: xParam, position: "insideBottom", dy: 10 }}
-          />
-          <YAxis
-            tickFormatter={yTickFormatter}
-            domain={yDomain}
-            width={90}
-            label={{
-              value:
-                viewMode === "absolute"
-                  ? label
-                  : viewMode === "delta"
-                  ? `${label} (Δ vs avg at X)`
-                  : `${label} (% vs avg at X)`,
-              angle: -90,
-              position: "left",
-              offset: 10,
-              style: { textAnchor: "middle" },
-            }}
-          />
-          <Tooltip
-            formatter={(v) => tooltipFormatter(v)}
-            labelFormatter={(l) => `${xParam} = ${l}`}
-          />
-          {viewMode !== "absolute" && (
-            <ReferenceLine y={0} stroke="#999" strokeDasharray="4 4" />
-          )}
-          {seriesKeys.map((key, idx) => {
-            const color = colors[idx % colors.length];
-            const faded = activeSeries && activeSeries !== key;
-            const opacity = faded ? 0.35 : 1;
-            return (
-              <Line
-                key={key}
-                type="monotone"
-                dataKey={key}
-                dot={{ r: 3, stroke: color, fill: color, fillOpacity: opacity, strokeOpacity: opacity }}
-                stroke={color}
-                strokeOpacity={opacity}
-                strokeWidth={2.2}
-                connectNulls={false}
-              />
-            );
-          })}
-        </LineChart>
-
-        <div
-          style={{
-            marginTop: 12,
-            paddingTop: 8,
-            borderTop: "1px solid #ddd",
-            fontSize: 15,
-          }}
-        >
-          <div style={{ marginBottom: 6 }}>
-            <strong>{seriesParam}:</strong>
-          </div>
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <div className="mb-2 font-semibold text-slate-800 dark:text-slate-200">{seriesParam}:</div>
+          <div className="flex flex-wrap gap-3">
             {seriesKeys.map((key, idx) => {
               const color = colors[idx % colors.length];
               const faded = activeSeries && activeSeries !== key;
@@ -364,14 +349,17 @@ export default function SweepChart2D({ sweep, metricSpec }) {
                     alignItems: "center",
                     cursor: "pointer",
                     opacity,
-                    padding: "3px 6px",
+                    padding: "4px 8px",
                     borderRadius: 6,
-                    border: activeSeries === key ? "1px solid rgba(59,130,246,0.6)" : "1px solid transparent",
+                    border:
+                      activeSeries === key
+                        ? "1px solid rgba(59,130,246,0.6)"
+                        : "1px solid transparent",
                   }}
                 >
                   <span
                     style={{
-                      width: 16,
+                      width: 18,
                       height: 3,
                       backgroundColor: color,
                       marginRight: 6,
@@ -385,9 +373,9 @@ export default function SweepChart2D({ sweep, metricSpec }) {
         </div>
 
         {varianceSummary && (
-          <div className="mt-3 overflow-hidden border border-slate-200 rounded-md dark:border-slate-700">
+          <div className="mt-4 overflow-hidden border border-slate-200 rounded-md dark:border-slate-700">
             <table className="w-full border-collapse text-sm">
-              <thead className="bg-slate-100 dark:bg-slate-800">
+              <thead className="bg-slate-100 dark:bg-slate-700">
                 <tr>
                   <th className="text-left px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
                     Factor
@@ -433,7 +421,7 @@ export default function SweepChart2D({ sweep, metricSpec }) {
         {correlations.length > 0 && (
           <div className="mt-3 overflow-hidden border border-slate-200 rounded-md dark:border-slate-700">
             <table className="w-full border-collapse text-sm">
-              <thead className="bg-slate-100 dark:bg-slate-800">
+            <thead className="bg-slate-100 dark:bg-slate-700">
                 <tr>
                   <th className="text-left px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
                     Series

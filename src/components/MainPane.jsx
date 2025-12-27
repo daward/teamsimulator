@@ -82,7 +82,7 @@ export default function MainPane({
       )}
 
       {mode === "single" && result && (
-        <div className="chart-card">
+        <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-4 dark:border-slate-700 dark:bg-slate-800">
           <h2>Single Run Result</h2>
           <pre className="max-h-[500px] overflow-auto text-sm">
             {JSON.stringify(result, null, 2)}
@@ -91,32 +91,26 @@ export default function MainPane({
       )}
 
       {mode === "sweep1D" && sweep1DResult && (
-        <div className="chart-card">
-          <SweepChart1D sweep={sweep1DResult} metricSpec={metricSpec} />
-        </div>
+        <SweepChart1D sweep={sweep1DResult} metricSpec={metricSpec} />
       )}
 
       {mode === "sweep2D" && sweep2DResult && (
-        <div className="chart-card">
-          <SweepChart2D sweep={sweep2DResult} metricSpec={metricSpec} />
-        </div>
+        <SweepChart2D sweep={sweep2DResult} metricSpec={metricSpec} />
       )}
 
       {mode === "scatter" && scatterResult && (
-        <div className="chart-card">
-          <ScatterPlot
-            scatter={scatterResult}
-            xAxisKey={scatterXAxisKey}
-            yAxisKey={scatterYAxisKey}
-            onSelectXAxis={onSetScatterXAxisKey}
-            colorKey={scatterColorKey}
-            onSelectColorKey={onSetScatterColorKey}
-            colorQuantize={scatterColorQuantize}
-            onToggleColorQuantize={onSetScatterColorQuantize}
-            scatterUnitKeys={scatterUnitKeys}
-            onSetScatterUnitKeys={onSetScatterUnitKeys}
-          />
-        </div>
+        <ScatterPlot
+          scatter={scatterResult}
+          xAxisKey={scatterXAxisKey}
+          yAxisKey={scatterYAxisKey}
+          onSelectXAxis={onSetScatterXAxisKey}
+          colorKey={scatterColorKey}
+          onSelectColorKey={onSetScatterColorKey}
+          colorQuantize={scatterColorQuantize}
+          onToggleColorQuantize={onSetScatterColorQuantize}
+          scatterUnitKeys={scatterUnitKeys}
+          onSetScatterUnitKeys={onSetScatterUnitKeys}
+        />
       )}
     </div>
   );
