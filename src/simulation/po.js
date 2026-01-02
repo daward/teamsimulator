@@ -19,9 +19,9 @@ export class ProductOwner {
   work(cycle, backlog, cfg) {
     if (!backlog || backlog.size() === 0) return;
 
-    const windowSize = cfg.poWindowSize || 5;
-    const actions = cfg.poActionsPerCycle || 0;
-    const errorProb = cfg.poErrorProb || 0;
+    const windowSize = cfg.productOwner?.windowSize || 5;
+    const actions = cfg.productOwner?.actionsPerCycle || 0;
+    const errorProb = cfg.productOwner?.errorProbability || 0;
 
     for (let a = 0; a < actions; a++) {
       if (backlog.size() <= 1) break;
@@ -72,7 +72,7 @@ export class ProductOwner {
   pickEvictionIndex(backlog) {
     if (!backlog || backlog.length === 0) return -1;
 
-    const errorProb = this.cfg.poErrorProb || 0;
+    const errorProb = this.cfg.productOwner?.errorProbability || 0;
 
     let worstIndex = 0;
     let worstScore = this.taskScore(backlog[0]);

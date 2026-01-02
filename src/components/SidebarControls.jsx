@@ -1,6 +1,5 @@
 // src/components/SidebarControls.jsx
 import ModeToggle from "./ModeToggle";
-import PresetGroupsSelect from "./PresetGroupsSelect";
 import ConfigPanel from "./ConfigPanel";
 import Sweep1DControls from "./Sweep1DControls";
 import Sweep2DControls from "./Sweep2DControls";
@@ -19,22 +18,21 @@ function buildScatterAxisOptions(availableMetricKeys) {
   );
 
   const cfgExtras = [
-    "askMinGain",
-    "askProb",
-    "completionLearningRate",
-    "conversationLearningRate",
-    "turnoverHireMode",
-    "turnoverProb",
-    "turnoverHireLag",
-    "turnoverHireAvgFactor",
-    "turnoverSpecialistBoost",
-    "numCycles",
-    "burnInCycles",
-    "poErrorProb",
-    "poWindowSize",
-    "poActionsPerCycle",
-    "maxBacklogSize",
-    "backlogSize",
+    "behavior.askMinimumGain",
+    "behavior.askProbability",
+    "behavior.completionLearningRate",
+    "behavior.conversationLearningRate",
+    "turnover.hireMode",
+    "turnover.probability",
+    "turnover.hireAvgFactor",
+    "turnover.specialistBoost",
+    "simulation.numCycles",
+    "simulation.burnInCycles",
+    "productOwner.errorProbability",
+    "productOwner.windowSize",
+    "productOwner.actionsPerCycle",
+    "backlog.maxSize",
+    "backlog.initialSize",
   ];
 
   const statsOptions = (availableMetricKeys || []).map((k) => ({
@@ -69,12 +67,9 @@ export default function SidebarControls({
   const updatePresetSelection = (groupId, presetId) => {
     app.setPresetSelections((prev) => ({ ...prev, [groupId]: presetId }));
 
-    const group = app.presetGroups.find((g) => g.id === groupId);
-    const preset = group?.presets.find((p) => p.id === presetId);
-    if (!preset || !preset.patch || Object.keys(preset.patch).length === 0) return;
-
+    // Deep-merge the currently selected presets onto the current config text
     const current = parseConfigText(app.configText, {});
-    const merged = { ...current, ...preset.patch };
+    const merged = applyPresetGroups(current, { ...app.presetSelections, [groupId]: presetId });
     app.setConfigText(JSON.stringify(merged, null, 2));
   };
 
@@ -151,12 +146,6 @@ export default function SidebarControls({
   return (
     <>
       <ModeToggle mode={app.mode} onChange={app.setMode} />
-
-      <PresetGroupsSelect
-        presetGroups={app.presetGroups}
-        presetSelections={app.presetSelections}
-        onChange={updatePresetSelection}
-      />
 
       {app.mode === "single" && (
         <div className="form-panel">
@@ -400,20 +389,15 @@ export default function SidebarControls({
             Tip: after you run once, you can change X/Y without re-running.
           </p>
         </div>
-      )}
+      )}      <hr style={{ margin: "12px 0" }} />
 
-      <hr style={{ margin: "12px 0" }} />
-
-      <button
-        onClick={() => app.setShowConfigPanel((v) => !v)}
-        style={{ fontSize: 12, padding: "4px 6px", marginBottom: 6 }}
-      >
-        {app.showConfigPanel ? "Hide config ▲" : "Show config ▼"}
-      </button>
-
-      {app.showConfigPanel && (
-        <ConfigPanel configText={app.configText} onConfigTextChange={app.setConfigText} />
-      )}
+      <ConfigPanel
+        configText={app.configText}
+        onConfigTextChange={app.setConfigText}
+        presetGroups={app.presetGroups}
+        presetSelections={app.presetSelections}
+        onPresetChange={updatePresetSelection}
+      />
     </>
   );
 }

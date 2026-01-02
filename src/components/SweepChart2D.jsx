@@ -13,13 +13,29 @@ import { pearson } from "../simulation/utils";
 function computeY(stats, metricSpec) {
   if (!stats) return null;
 
+  const getStat = (key) => {
+    if (!key) return undefined;
+    let k = key;
+    if (k.startsWith("stats:")) k = k.slice("stats:".length);
+    const parts = k.split(".");
+    let cur = stats;
+    for (const p of parts) {
+      if (cur && typeof cur === "object" && p in cur) {
+        cur = cur[p];
+      } else {
+        return undefined;
+      }
+    }
+    return cur;
+  };
+
   if (metricSpec.mode === "single") {
-    const v = stats[metricSpec.key];
+    const v = getStat(metricSpec.key);
     return typeof v === "number" && Number.isFinite(v) ? v : null;
   }
 
-  const a = stats[metricSpec.numeratorKey];
-  const b = stats[metricSpec.denominatorKey];
+  const a = getStat(metricSpec.numeratorKey);
+  const b = getStat(metricSpec.denominatorKey);
   if (typeof a !== "number" || !Number.isFinite(a)) return null;
   if (typeof b !== "number" || !Number.isFinite(b) || b === 0) return null;
   return a / b;

@@ -1,5 +1,6 @@
 // src/hooks/useAvailableKeys.js
 import { useEffect, useMemo } from "react";
+import baseConfig from "../config/baseConfig.json";
 
 /**
  * Produces:
@@ -21,11 +22,29 @@ function safeJsonParse(text) {
   }
 }
 
-function addStatKeysFromStatsObject(outSet, stats) {
+function deepMerge(target, source) {
+  if (!source || typeof source !== "object") return target;
+  for (const [k, v] of Object.entries(source)) {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      if (!target[k] || typeof target[k] !== "object") target[k] = {};
+      deepMerge(target[k], v);
+    } else {
+      target[k] = v;
+    }
+  }
+  return target;
+}
+
+function addStatKeysFromStatsObject(outSet, stats, prefix = []) {
   if (!stats || typeof stats !== "object") return;
   for (const [k, v] of Object.entries(stats)) {
-    // only show numeric fields (including 0)
-    if (typeof v === "number" && Number.isFinite(v)) outSet.add(k);
+    const path = [...prefix, k];
+    if (typeof v === "number" && Number.isFinite(v)) {
+      outSet.add(path.join("."));
+      outSet.add(path.join(":")); // allow colon legacy
+    } else if (v && typeof v === "object" && !Array.isArray(v)) {
+      addStatKeysFromStatsObject(outSet, v, path);
+    }
   }
 }
 
@@ -69,20 +88,32 @@ export function useAvailableKeys({
   setRatioNumeratorKey,
   setRatioDenominatorKey,
 }) {
-  const cfgObj = useMemo(() => safeJsonParse(configText), [configText]);
+  const cfgObj = useMemo(() => {
+    const merged = deepMerge(
+      JSON.parse(JSON.stringify(baseConfig || {})),
+      safeJsonParse(configText)
+    );
+    return merged;
+  }, [configText]);
 
   const availableParams = useMemo(() => {
-    const keys = new Set(Object.keys(cfgObj || {}));
+    const keys = new Set();
 
-    // ensure some common params are present even if missing in cfg text
-    const paramExtras = [
-      "turnoverProb",
-      "turnoverHireLag",
-      "turnoverHireAvgFactor",
-      "turnoverSpecialistBoost",
-      "turnoverHireMode",
-    ];
-    paramExtras.forEach((k) => keys.add(k));
+    const addPaths = (obj, prefix = []) => {
+      if (!obj || typeof obj !== "object") return;
+      for (const [k, v] of Object.entries(obj)) {
+        const path = [...prefix, k];
+        // Hide legacy tasks.* entries from selectors
+        if (path[0] === "tasks") continue;
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          addPaths(v, path);
+        } else {
+          keys.add(path.join("."));
+        }
+      }
+    };
+
+    addPaths(cfgObj || {});
 
     // Allow sweeping presets: preset:<groupId>
     for (const g of presetGroups || []) {

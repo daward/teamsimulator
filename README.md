@@ -25,7 +25,7 @@ TeamSim is a lightweight agent-based model for a software team working through a
 - Learning modes:
   - Conversations: `conversationLearningRate` moves both participants toward the union of their expertise during info help.
   - Completion: `completionLearningRate` applies once when a task finishes, scaled by task effort.
-  - Decay: `knowledgeDecayRate` applies to topics not touched in a cycle.
+- Decay: `forgetfulness` applies to topics not touched in a cycle.
 - Beliefs update by EMA toward observed helper knowledge (`beliefUpdateRate`) and never credit self.
 
 ## Tasks and value

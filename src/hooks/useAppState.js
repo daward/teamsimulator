@@ -10,27 +10,27 @@ export function useAppState(baseConfig) {
   const [mode, setMode] = useState("single"); // "single" | "sweep1D" | "sweep2D" | "scatter"
 
   // 1D sweep
-  const [sweepParamName, setSweepParamName] = useState("askProb");
+  const [sweepParamName, setSweepParamName] = useState("behavior.askProbability");
   const [sweepValuesText, setSweepValuesText] = useState("0,0.1,0.2,0.3,0.5,0.7,0.9");
 
   // 2D sweep
-  const [xParam, setXParam] = useState("askProb");
+  const [xParam, setXParam] = useState("behavior.askProbability");
   const [xValuesText, setXValuesText] = useState("0,0.1,0.2,0.3,0.5,0.7,0.9");
-  const [seriesParam, setSeriesParam] = useState("numTaskTypes");
+  const [seriesParam, setSeriesParam] = useState("team.numTaskTypes");
   const [seriesValuesText, setSeriesValuesText] = useState("3,5,8");
 
   // Metric selection (for sweep charts)
   const [metricMode, setMetricMode] = useState("single"); // "single" | "ratio"
   const [metricKey, setMetricKey] = useState("workerProductivity");
   const [ratioNumeratorKey, setRatioNumeratorKey] = useState("workerProductivity");
-  const [ratioDenominatorKey, setRatioDenominatorKey] = useState("numWorkers");
+  const [ratioDenominatorKey, setRatioDenominatorKey] = useState("teamProductivity");
 
   // Scatter controls
   const [scatterN, setScatterN] = useState(300);
   // axis keys: "stats:...", "unit:...", "cfg:..."
   const [scatterXAxisKey, setScatterXAxisKey] = useState("stats:totalValue");
-  const [scatterYAxisKey, setScatterYAxisKey] = useState("stats:totalTasksCompleted");
-  const [scatterColorKey, setScatterColorKey] = useState("cfg:conversationLearningRate");
+  const [scatterYAxisKey, setScatterYAxisKey] = useState("stats:workerProductivity");
+  const [scatterColorKey, setScatterColorKey] = useState("cfg:behavior.conversationLearningRate");
   const [scatterColorQuantize, setScatterColorQuantize] = useState(true);
   const [scatterUnitKeys, setScatterUnitKeys] = useState(null); // null/empty => all
 

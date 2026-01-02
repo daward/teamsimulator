@@ -38,8 +38,19 @@ export function randomUnitVars(unitMappings) {
  * Applies unit vars onto base config according to mapping schema.
  * Returns a NEW config object.
  */
+function setNested(cfg, path, value) {
+  if (!path || path.length === 0) return;
+  let cur = cfg;
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i];
+    if (!cur[key] || typeof cur[key] !== "object") cur[key] = {};
+    cur = cur[key];
+  }
+  cur[path[path.length - 1]] = value;
+}
+
 export function applyUnitConfig(baseConfig, unitVars, unitMappings, varySet = null) {
-  const cfg = { ...(baseConfig || {}) };
+  const cfg = JSON.parse(JSON.stringify(baseConfig || {}));
 
   for (const unitKey of Object.keys(unitMappings || {})) {
     if (varySet && !varySet.has(unitKey)) continue;
@@ -50,31 +61,9 @@ export function applyUnitConfig(baseConfig, unitVars, unitMappings, varySet = nu
     const uRaw = unitVars?.[unitKey];
     const u = clamp01(Number(uRaw));
 
-    // ratio mapping (special)
-    if (def.type === "ratio") {
-      // Your schema says target:"infoToImplRatio"
-      // Interpret unit u as ratio in a reasonable range.
-      // Range: 0.25 .. 4.0 (info can be 1/4 of impl up to 4x impl).
-      const ratio = logLerp(0.25, 4.0, u);
-
-      // Keep total constant based on current cfg (or fallback)
-      const total =
-        (Number(cfg.avgInfoTime) || 0) + (Number(cfg.avgImplTime) || 0) || 1;
-
-      // info/impl = ratio, so:
-      // info = total * ratio / (1 + ratio)
-      // impl = total * 1 / (1 + ratio)
-      cfg.avgInfoTime = total * ratio / (1 + ratio);
-      cfg.avgImplTime = total / (1 + ratio);
-
-      // Optionally expose it (useful for debugging)
-      cfg.infoToImplRatio = ratio;
-
-      continue;
-    }
-
     const target = def.target;
     if (!target || typeof target !== "string") continue;
+    const targetPath = target.split(".");
 
     const min = Number(def.min);
     const max = Number(def.max);
@@ -94,7 +83,7 @@ export function applyUnitConfig(baseConfig, unitVars, unitMappings, varySet = nu
 
     if (def.type === "int") mapped = coerceInt(mapped);
 
-    cfg[target] = mapped;
+    setNested(cfg, targetPath, mapped);
   }
 
   return cfg;

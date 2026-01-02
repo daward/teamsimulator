@@ -1,4 +1,4 @@
-// src/simulation.js
+// src/simulation/simulation.js
 import { Worker } from "./worker.js";
 import { createRandomTask } from "./task.js";
 import { Backlog } from "./backlog.js";
@@ -6,14 +6,9 @@ import { ProductOwner } from "./po.js";
 import { samplePoisson, shuffleInPlace, mean } from "./utils.js";
 import {
   computeFinalTeamAvgExpertise,
-  computeFinalTeamAvgMaxExpertisePerTopic
+  computeFinalTeamAvgMaxExpertisePerTopic,
 } from "./metrics.js";
 
-
-/**
- * One independent run.
- * NOTE: Intentionally "pure" relative to cfg (we don't mutate cfg).
- */
 function makeInitialStats() {
   return {
     totalValue: 0,
@@ -25,7 +20,9 @@ function makeInitialStats() {
 
     totalAskAttempts: 0,
     askWithHelper: 0,
-    askWithoutHelper: 0,
+    didNotAsk: 0,
+    didNotAskAmTheExpert: 0,
+    noHelpFound: 0,
     successfulConversations: 0,
     failedConversations: 0,
 
@@ -41,398 +38,262 @@ function makeInitialStats() {
     workerProductivity: 0,
     activeWorkerCycles: 0,
 
-    // final expertise scalars (0..1)
     finalTeamAvgExpertise: 0,
     finalTeamAvgMaxExpertisePerTopic: 0,
 
-    // Knowledge gain tracking
     conversationExperienceGain: 0,
     completionExperienceGain: 0,
 
-    turnovers: 0
+    turnovers: 0,
+    candidateCount: 0,
+    hireCount: 0,
+    rejectCount: 0,
+    totalCandidateSkill: 0,
+    totalHireSkill: 0,
+    avgCandidateSkill: 0,
+    avgHireSkill: 0,
+    hireRate: 0,
+    vacancyCycles: 0,
+    vacancyRate: 0,
+    interviewCyclesSpent: 0,
+    totalHireDelay: 0,
+    hiresFilled: 0,
+    cyclesToHireAvg: 0,
+    hireLearningScaleAvg: 0,
+
+    // per-worker tracking
+    workerValue: {},
+    workerActiveCycles: {},
   };
 }
 
-function flattenConfig(cfg) {
-  if (!cfg || typeof cfg !== "object") return {};
-  const out = { ...cfg };
+function finalizeStats(stats, workers, cfg, formerWorkers = []) {
+  const numCycles = cfg?.simulation?.numCycles ?? 1;
+  const targetHeadcount = cfg?.team?.size ?? 0;
 
-  const pick = (path) =>
-    path.reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), cfg);
-
-  const map = [
-    [["environment", "newTaskRate"], "envTaskRate"],
-    [["environment", "avgTaskValue"], "avgValue"],
-    [["environment", "retentionMin"], "taskRetentionMin"],
-    [["environment", "retentionMax"], "taskRetentionMax"],
-    [["backlog", "initialSize"], "backlogSize"],
-    [["backlog", "maxSize"], "maxBacklogSize"],
-    [["team", "size"], "numWorkers"],
-    [["team", "numTaskTypes"], "numTaskTypes"],
-    [["tasks", "avgInfoTime"], "avgInfoTime"],
-    [["tasks", "avgImplTime"], "avgImplTime"],
-    [["behavior", "askProbability"], "askProb"],
-    [["behavior", "askMinimumGain"], "askMinGain"],
-    [["behavior", "absenceProbability"], "absenceProb"],
-    [["behavior", "knowledgeDecayRate"], "knowledgeDecayRate"],
-    [["behavior", "completionLearningRate"], "completionLearningRate"],
-    [["behavior", "conversationLearningRate"], "conversationLearningRate"],
-    [["productOwner", "windowSize"], "poWindowSize"],
-    [["productOwner", "actionsPerCycle"], "poActionsPerCycle"],
-    [["productOwner", "absenceProbability"], "poAbsenceProb"],
-    [["productOwner", "errorProbability"], "poErrorProb"],
-    [["turnover", "probability"], "turnoverProb"],
-    [["turnover", "hireLag"], "turnoverHireLag"],
-    [["turnover", "hireAvgFactor"], "turnoverHireAvgFactor"],
-    [["turnover", "hireMode"], "turnoverHireMode"],
-    [["turnover", "specialistBoost"], "turnoverSpecialistBoost"],
-    [["belief", "updateRate"], "beliefUpdateRate"],
-    [["belief", "initMax"], "beliefInitMax"],
-    [["simulation", "numCycles"], "numCycles"],
-    [["simulation", "burnInCycles"], "burnInCycles"],
-    [["simulation", "logEvery"], "logEvery"],
-    [["simulation", "replicates"], "replicates"],
-  ];
-
-  for (const [path, target] of map) {
-    const v = pick(path);
-    if (v !== undefined) out[target] = v;
+  // ensure live workers have entries
+  for (const w of workers) {
+    if (stats.workerValue[w.id] == null) stats.workerValue[w.id] = 0;
+    if (stats.workerActiveCycles[w.id] == null) stats.workerActiveCycles[w.id] = 0;
+  }
+  // former workers already contributed to workerValue/workerActiveCycles before removal
+  for (const fw of formerWorkers) {
+    if (fw.id == null) {
+      continue;
+    }
+    stats.workerValue[fw.id] = (stats.workerValue[fw.id] || 0) + (fw.value || 0);
+    stats.workerActiveCycles[fw.id] =
+      (stats.workerActiveCycles[fw.id] || 0) + (fw.activeCycles || 0);
   }
 
-  return out;
-}
-
-function finalizeStats(stats, workers, cfg) {
-  stats.teamProductivity = stats.cumulativeRecurringValue / cfg.numCycles;
-  const avgActiveWorkers = stats.activeWorkerCycles / cfg.numCycles;
+  stats.teamProductivity = stats.cumulativeRecurringValue / numCycles;
+  const totalActiveSum = Object.values(stats.workerActiveCycles).reduce((a, b) => a + b, 0);
+  // Per-worker productivity: total recurring value produced per active worker-cycle.
   stats.workerProductivity =
-    avgActiveWorkers > 0 ? stats.teamProductivity / avgActiveWorkers : 0;
-  // Hierarchical/stat aliases for clarity
-  stats["productivity:team"] = stats.teamProductivity;
-  stats["productivity:worker"] = stats.workerProductivity;
-  stats.productivity = {
-    team: stats.teamProductivity,
-    worker: stats.workerProductivity,
-  };
+    totalActiveSum > 0 ? stats.cumulativeRecurringValue / totalActiveSum : 0;
+  stats.cyclesToHireAvg =
+    stats.hiresFilled > 0 ? stats.totalHireDelay / stats.hiresFilled : 0;
+  stats.hireRate = stats.candidateCount > 0 ? stats.hireCount / stats.candidateCount : 0;
+  stats.avgCandidateSkill =
+    stats.candidateCount > 0 ? stats.totalCandidateSkill / stats.candidateCount : 0;
+  stats.avgHireSkill = stats.hireCount > 0 ? stats.totalHireSkill / stats.hireCount : 0;
+  const totalSeatCycles = numCycles * targetHeadcount;
+  stats.vacancyRate = totalSeatCycles > 0 ? stats.vacancyCycles / totalSeatCycles : 0;
 
-  stats.finalTeamAvgExpertise = computeFinalTeamAvgExpertise(workers, cfg.numTaskTypes);
+  // Average hire learning scale across all current and former workers
+  const allWorkers = [...workers, ...formerWorkers];
+  const scales = allWorkers
+    .map((w) => (w.learningScale ?? 1))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  stats.hireLearningScaleAvg =
+    scales.length > 0 ? scales.reduce((a, b) => a + b, 0) / scales.length : 0;
+
+  const numTopics = cfg?.team?.numTaskTypes ?? 1;
+  stats.finalTeamAvgExpertise = computeFinalTeamAvgExpertise(workers, numTopics);
   stats.finalTeamAvgMaxExpertisePerTopic = computeFinalTeamAvgMaxExpertisePerTopic(
     workers,
-    cfg.numTaskTypes
+    numTopics
   );
 
-   const totalGain =
-     (stats.conversationExperienceGain ?? 0) + (stats.completionExperienceGain ?? 0);
-   stats.conversationExperienceShare =
-     totalGain > 0 ? stats.conversationExperienceGain / totalGain : 0;
-}
-
-function computeAvgKnowledgeByTopic(workers, numTopics) {
-  const topics = Math.max(1, numTopics ?? 1);
-  const sums = new Array(topics).fill(0);
-  const counts = new Array(topics).fill(0);
-
-  for (const w of workers) {
-    for (let t = 0; t < topics; t++) {
-      const v = w.knowledge?.[t];
-      if (typeof v === "number" && Number.isFinite(v)) {
-        sums[t] += v;
-        counts[t] += 1;
-      }
-    }
-  }
-
-  const avg = new Array(topics).fill(0);
-  for (let t = 0; t < topics; t++) {
-    avg[t] = counts[t] > 0 ? sums[t] / counts[t] : 0;
-  }
-  return avg;
+  const totalGain =
+    (stats.conversationExperienceGain ?? 0) + (stats.completionExperienceGain ?? 0);
+  stats.conversationExperienceShare =
+    totalGain > 0 ? stats.conversationExperienceGain / totalGain : 0;
 }
 
 function runSingleSimulation(cfg) {
-  // ------------------------------------------------------------
-  // INITIALIZATION
-  // ------------------------------------------------------------
+  const numCycles = cfg?.simulation?.numCycles ?? 0;
+  const burnInCycles = cfg?.simulation?.burnInCycles ?? 0;
 
-  const backlog = new Backlog(cfg.backlogSize);
+  const env = cfg?.environment || {};
+  const backlogCfg = cfg?.backlog || {};
+  const team = cfg?.team || {};
+  const behavior = cfg?.behavior || {};
+  const productOwnerCfg = cfg?.productOwner || {};
+  const turnover = cfg?.turnover || {};
 
-  // Pre-fill backlog
-  for (let i = 0; i < cfg.backlogSize; i++) {
+  // Backlog and initial tasks
+  const backlog = new Backlog(backlogCfg.initialSize ?? 0);
+  const initialBacklogSize = backlogCfg.initialSize ?? 0;
+  for (let i = 0; i < initialBacklogSize; i++) {
     backlog.addTask(createRandomTask(cfg));
   }
 
   // Workers
+  const workerCount = team.size ?? 0;
   const workers = [];
-  for (let i = 0; i < cfg.numWorkers; i++) {
+  let nextWorkerId = workerCount;
+  const formerWorkers = [];
+  for (let i = 0; i < workerCount; i++) {
     workers.push(new Worker(i, cfg));
   }
 
-  // Initialize beliefs model (0..1) for "who is the expert?"
+  const numTaskTypes = team.numTaskTypes ?? 1;
+  workers.forEach((w) => w.initBeliefsForTopics(numTaskTypes, workers));
+
+  const po = new ProductOwner(cfg);
+  const stats = makeInitialStats();
+  const targetHeadcount = workerCount;
   for (const w of workers) {
-    if (typeof w.initBeliefsForTopics === "function") {
-      w.initBeliefsForTopics(cfg.numTaskTypes, workers);
-    }
+    stats.workerValue[w.id] = 0;
+    stats.workerActiveCycles[w.id] = 0;
   }
 
-  // Product Owner
-  const po = new ProductOwner(cfg);
+  // Simulation loop
+  const openVacancies = [];
 
-  const stats = makeInitialStats();
+  for (let cycle = 0; cycle < numCycles; cycle++) {
+    const hiresPending = [];
 
-  const burnInCycles = cfg.burnInCycles ?? 0;
+    // reset busy flags and set absences per worker
+    workers.forEach((w) => w.startDay());
 
-  // ------------------------------------------------------------
-  // SIMULATION LOOP
-  // ------------------------------------------------------------
+    // track open seats this cycle (seat-cycles)
+    const vacancySeats = Math.max(0, targetHeadcount - workers.length);
+    stats.vacancyCycles += vacancySeats;
 
-  for (let cycle = 0; cycle < cfg.numCycles; cycle++) {
-    // Handle vacancies: onboard new hires whose lag has expired
-    for (const w of workers) {
-      if (w.vacantUntil != null && cycle >= w.vacantUntil) {
-        const avgKnowledgeByTopic = computeAvgKnowledgeByTopic(
-          workers.filter((p) => p !== w),
-          cfg.numTaskTypes
-        );
-        w.onboardFromTemplate(avgKnowledgeByTopic, cfg, cfg.numTaskTypes);
-        if (typeof w.initBeliefsForTopics === "function") {
-          w.initBeliefsForTopics(cfg.numTaskTypes, workers);
+    // 1) Interview: one per cycle if a seat is open
+    const turnoverProb = turnover?.probability ?? 0;
+    const missingSeats = Math.max(0, targetHeadcount - workers.length - hiresPending.length);
+    if (missingSeats > 0 && turnoverProb > 0) {
+      const arrivalProb = 1 / Math.max(1, turnover.candidateInterarrivalMean ?? 5);
+      if (Math.random() < arrivalProb) {
+        const interviewer = workers.find((w) => !w.isAbsent && w.currentInterview == null);
+        if (interviewer) {
+          interviewer.startInterview({
+            turnover,
+            hireId: nextWorkerId,
+            numTopics: numTaskTypes,
+          });
+          const candidateSkill = interviewer.currentInterview?.candidate?.trueSkill;
+          stats.candidateCount += 1;
+          if (Number.isFinite(candidateSkill)) {
+            stats.totalCandidateSkill += candidateSkill;
+          }
         }
       }
     }
 
-    // --------------------------------------------------------
-    // 1. ENVIRONMENTAL TASK ARRIVAL (Poisson)
-    // --------------------------------------------------------
-    const arrivals = samplePoisson(cfg.envTaskRate ?? 0);
+    // 1) Task arrivals
+    const arrivals = samplePoisson(env.newTaskRate ?? 0);
+    stats.totalTasksArrived += arrivals;
     for (let i = 0; i < arrivals; i++) {
       backlog.addTask(createRandomTask(cfg));
-      stats.totalTasksArrived++;
     }
 
-    // Eviction if backlog too large
-    while (backlog.size() > cfg.maxBacklogSize) {
-      const evicted = backlog.evictLowestValue();
-      if (evicted) {
-        stats.evictedTasks++;
-        stats.evictedValue += evicted.value;
-      }
-    }
-
-    // --------------------------------------------------------
-    // 2. PRODUCT OWNER SORTING
-    // --------------------------------------------------------
-    const poAbsent = Math.random() < (cfg.poAbsenceProb ?? 0);
+    // 2) Product Owner sorting + eviction
+    const poAbsent = Math.random() < (productOwnerCfg.absenceProbability ?? 0);
     if (!poAbsent) {
       po.work(cycle, backlog, cfg);
+      backlog.evictExtra(backlogCfg.maxSize ?? Infinity, (tasks) => po.pickEvictionIndex(tasks), stats);
     }
 
-    // --------------------------------------------------------
-    // 3. WORKER ABSENCES
-    // --------------------------------------------------------
+    // 3) Worker task assignment
     for (const w of workers) {
-      if (w.vacantUntil != null && w.vacantUntil > cycle) {
-        w.isAbsent = true;
+      if (!w.isAvailable()) {
         continue;
       }
-      w.isAbsent = Math.random() < (cfg.absenceProb ?? 0);
-    }
-
-    // Track active (present and non-vacant) workers for per-worker productivity
-    let activeThisCycle = 0;
-    for (const w of workers) {
-      const isVacant = w.vacantUntil != null && w.vacantUntil > cycle;
-      if (!w.isAbsent && !isVacant) activeThisCycle += 1;
-    }
-    stats.activeWorkerCycles += activeThisCycle;
-
-    // --------------------------------------------------------
-    // 4. WORKER TASK ASSIGNMENT
-    // --------------------------------------------------------
-    for (const w of workers) {
-      if (w.isAbsent) continue;
-
       if (!w.currentTask) {
         const t = backlog.takeTask();
         if (t) w.assignTask(t);
       }
     }
 
-    // --------------------------------------------------------
-    // 5. WORKER ACTIONS (with conversation cost!)
-    // --------------------------------------------------------
+    // 4) Worker actions
     stats.currentCycleCompletedValue = 0;
     stats.completedTasksThisCycle = [];
 
-    // NEW: randomize order each cycle so "helper loses cycle" isn't biased
     const order = workers.slice();
     shuffleInPlace(order);
-
-    // NEW: track who has already acted or is "busy helping" this cycle
-    const actedThisCycle = new Set();
-    const busyThisCycle = new Set(); // includes helpers that must skip their own action
-
     for (const w of order) {
-      if (w.isAbsent) continue;
-      if (!w.currentTask) continue;
-
-      // If this worker is marked busy (they helped someone), they lose their cycle.
-      if (busyThisCycle.has(w.id)) {
-        actedThisCycle.add(w.id);
-        continue;
-      }
-
-      // Also guard against double-processing
-      if (actedThisCycle.has(w.id)) continue;
-
-      const topic = w.currentTask.type;
-
-      // --------------------------------------------
-      // INFO PHASE
-      // --------------------------------------------
-      if (w.phase === "info") {
-        stats.totalInfoCycles++;
-
-        // Decide whether to ask and who to ask
-        let decision = { shouldAsk: false, helper: null, bestGap: 0 };
-
-        if (typeof w.shouldAskForHelp === "function") {
-          decision = w.shouldAskForHelp(topic, workers);
-        } else {
-          decision.shouldAsk = Math.random() < (cfg.askProb ?? 0);
-          decision.helper =
-            typeof w.chooseExpertForTopic === "function"
-              ? w.chooseExpertForTopic(topic, workers)
-              : null;
-        }
-
-        if (decision.shouldAsk) {
-          stats.totalAskAttempts++;
-
-          const helper = decision.helper;
-
-          // Helper must be:
-          // - present
-          // - has a task
-          // - not already acted this cycle
-          // - not already busy helping someone else
-          const helperOk =
-            helper &&
-            !helper.isAbsent &&
-            helper.currentTask &&
-            !actedThisCycle.has(helper.id) &&
-            !busyThisCycle.has(helper.id);
-
-          if (helperOk) {
-            // successful conversation
-            stats.successfulConversations++;
-            stats.totalConversationCycles++;
-            stats.askWithHelper++;
-
-            // Conversation happens: asker acts, helper becomes busy and loses their cycle.
-            const gain = w.workInfoWithHelper(helper);
-            if (Number.isFinite(gain)) {
-              stats.conversationExperienceGain += gain;
-            }
-
-            // COST: helper loses their cycle this round
-            busyThisCycle.add(helper.id);
-          } else {
-            // attempted but no helper
-            stats.failedConversations++;
-            stats.askWithoutHelper++;
-
-            // Ask attempt doesn't cost a cycle beyond the asker's normal action;
-            // the cost model you asked for is "both workers lose a cycle when convo occurs".
-            w.workInfoSolo();
-          }
-        } else {
-          // no ask attempt
-          w.workInfoSolo();
-        }
-
-        actedThisCycle.add(w.id);
-        continue;
-      }
-
-      // --------------------------------------------
-      // IMPL PHASE
-      // --------------------------------------------
-      if (w.phase === "impl") {
-        stats.totalImplCycles++;
-        w.workImpl();
-
-        if (w.remainingImpl <= 0) {
-          const t = w.currentTask;
-
-          stats.totalValue += t.value;
-          stats.totalTasksCompleted++;
-          stats.currentCycleCompletedValue += t.value;
-
-          // Apply consolidated learning at task completion.
-          const gain = w.learnOnTaskCompletion(t);
-          if (Number.isFinite(gain)) {
-            stats.completionExperienceGain += gain;
-          }
-
-          if (cycle >= burnInCycles) {
-            const recurring = t.value * t.valueRetention;
-            stats.cumulativeRecurringValue += recurring;
-          }
-
-          stats.completedTasksThisCycle.push(t);
-
-          // Turnover check happens at task completion
-          const turnoverProb = cfg.turnoverProb ?? 0;
-          if (turnoverProb > 0 && Math.random() < turnoverProb) {
-            w.resetKnowledgeAndBeliefs();
-            const lag = Math.max(0, Math.floor(cfg.turnoverHireLag ?? 0));
-            w.vacantUntil = cycle + lag;
-            stats.turnovers++;
-          }
-
-          w.clearTask();
-        }
-
-        actedThisCycle.add(w.id);
-        continue;
+      const result = w.tick({
+        workers,
+        stats,
+        cfg,
+        cycle,
+        burnInCycles,
+      });
+      if (result?.hire) {
+        hiresPending.push(result.hire);
       }
     }
 
-    // --------------------------------------------------------
-    // 6. APPLY PER-WORKER DECAY
-    // --------------------------------------------------------
+    // Active counts (exclude absent, busy/interview/helper, or marked for removal)
+    let activeThisCycle = 0;
     for (const w of workers) {
-      if (!w.isAbsent) w.applyDecay();
+      if (w.recordActive(stats)) {
+        activeThisCycle += 1;
+      }
+    }
+    stats.activeWorkerCycles += activeThisCycle;
+
+    const removedIds = [];
+    // Remove workers marked for removal (turnover)
+    for (let i = workers.length - 1; i >= 0; i--) {
+      if (workers[i].markedForRemoval) {
+        openVacancies.push(cycle);
+        removedIds.push(workers[i].id);
+        formerWorkers.push({
+          id: workers[i].id,
+          value: stats.workerValue[workers[i].id] || 0,
+          activeCycles: stats.workerActiveCycles[workers[i].id] || 0,
+        });
+        workers.splice(i, 1);
+      }
+    }
+    if (removedIds.length) {
+      workers.forEach((w) => w.purgeBeliefsForIds(removedIds));
     }
 
-    // --------------------------------------------------------
-    // 7. RECURRING VALUE (no-op placeholder)
-    // --------------------------------------------------------
+    // add any queued hires (start next cycle)
+    if (hiresPending.length) {
+      for (const hire of hiresPending) {
+        hire.id = nextWorkerId++;
+        stats.workerValue[hire.id] = 0;
+        stats.workerActiveCycles[hire.id] = 0;
+        if (openVacancies.length) {
+          const openedCycle = openVacancies.shift();
+          const delay = Math.max(0, cycle - openedCycle + 1);
+          stats.totalHireDelay += delay;
+          stats.hiresFilled += 1;
+        }
+        workers.push(hire);
+        hire.initBeliefsForTopics(numTaskTypes, workers);
+      }
+    }
+
+    // 7) Recurring value (placeholder)
     if (cycle >= burnInCycles) {
       stats.cumulativeRecurringValue *= 1;
     }
   }
 
-  // ------------------------------------------------------------
-  // FINAL CALCULATIONS
-  // ------------------------------------------------------------
-  finalizeStats(stats, workers, cfg);
-
+  finalizeStats(stats, workers, cfg, formerWorkers);
   return { stats, workers };
 }
 
-/**
- * Public entrypoint.
- * If cfg.replicates > 1, returns aggregate stats (mean only) and one sample run.
- */
 export function runSimulation(cfg) {
-  cfg = flattenConfig(cfg);
-  const reps = Math.max(1, Math.floor(cfg.replicates ?? 20));
-
-  if (reps === 1) {
-    const { stats, workers } = runSingleSimulation(cfg);
-    return { stats, workers, cfg };
-  }
+  const reps = Math.max(1, Math.floor(cfg.simulation?.replicates ?? 1));
 
   const perRepStats = [];
   let sample = null;
@@ -440,32 +301,22 @@ export function runSimulation(cfg) {
   for (let r = 0; r < reps; r++) {
     const run = runSingleSimulation(cfg);
     perRepStats.push(run.stats);
+    if (r === reps - 1) sample = run;
+  }
 
-    if (r === reps - 1) {
-      // keep only one sample run (last) to avoid huge payloads
-      sample = { stats: run.stats, workers: run.workers };
+  const agg = {};
+  if (perRepStats.length) {
+    const keys = Object.keys(perRepStats[0]);
+    for (const k of keys) {
+      agg[k] = mean(perRepStats.map((s) => s[k]));
     }
   }
 
-  // Aggregate numeric fields (mean only)
-  const numericKeys = Object.keys(perRepStats[0]).filter((k) => {
-    const v = perRepStats[0][k];
-    return typeof v === "number" && Number.isFinite(v);
-  });
-
-  const aggregate = {};
-  for (const k of numericKeys) {
-    const values = perRepStats.map((s) => s[k]);
-    aggregate[k] = mean(values);
-  }
-
-  aggregate.replicates = reps;
-
   return {
-    stats: aggregate,
+    stats: agg,
     sample,
-    cfg
+    workers: sample?.workers,
+    perRepStats,
+    cfg,
   };
 }
-
-export default runSimulation;

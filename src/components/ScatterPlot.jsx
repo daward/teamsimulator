@@ -96,7 +96,7 @@ export default function ScatterPlot({
   const targetKey =
     typeof yAxisKey === "string" && yAxisKey.startsWith("stats:")
       ? yAxisKey
-      : "stats:workerProductivity";
+      : "stats:productivity.worker";
 
   const targetLabel = prettyAxisLabel(targetKey);
 

@@ -32,40 +32,43 @@ function loadBaseConfig() {
   const cfg = loadJsonIfExists(baseConfigPath) ?? {};
 
   const defaults = {
-    numWorkers: 8,
-    numTaskTypes: 20,
-    avgInfoTime: 4,
-    avgImplTime: 6,
-    avgValue: 5,
-
-    askProb: 0.3,
-    askMinGain: 0.0,
-    absenceProb: 0.05,
-    turnoverProb: 0.0,
-    numCycles: 10000,
-    burnInCycles: 0,
-    logEvery: 0,
-
-    backlogSize: 50,
-    maxBacklogSize: 200,
-    poWindowSize: 5,
-    poActionsPerCycle: 1,
-    poAbsenceProb: 0.0,
-    poErrorProb: 0.3,
-
-    taskRetentionMin: 0.1,
-    taskRetentionMax: 0.7,
-
-    envTaskRate: 1,
-
-    knowledgeDecayRate: 0.05,
-    completionLearningRate: 0.15,
-    conversationLearningRate: 0.1,
-
-    beliefUpdateRate: 0.2,
-    beliefInitMax: 0.1,
-
-    replicates: 20
+    environment: {
+      newTaskRate: 1,
+      avgTaskValue: 5,
+      avgInfoTime: 50,
+      avgImplTime: 50,
+      retentionMin: 0.1,
+      retentionMax: 0.7,
+    },
+    backlog: { initialSize: 50, maxSize: 200 },
+    team: { size: 8, numTaskTypes: 20 },
+    behavior: {
+      askProbability: 0.3,
+      askMinimumGain: 0.0,
+      absenceProbability: 0.05,
+      forgetfulness: 0.05,
+      completionLearningRate: 0.15,
+      conversationLearningRate: 0.1,
+    },
+    productOwner: {
+      windowSize: 5,
+      actionsPerCycle: 1,
+      absenceProbability: 0.0,
+      errorProbability: 0.3,
+    },
+    turnover: {
+      probability: 0.0,
+      hireAvgFactor: 0.8,
+      hireMode: "average",
+      specialistBoost: 0.25,
+    },
+    belief: { updateRate: 0.2, initMax: 0.1 },
+    simulation: {
+      numCycles: 10000,
+      burnInCycles: 0,
+      logEvery: 0,
+      replicates: 20,
+    },
   };
 
   return { ...defaults, ...cfg };
@@ -169,17 +172,17 @@ function main() {
         ...unitVarNames,
 
         // include some mapped cfg fields for debugging/plotting
-        "envTaskRate",
-        "numWorkers",
-        "numTaskTypes",
-        "avgInfoTime",
-        "avgImplTime",
-        "avgValue",
-        "askProb",
-        "askMinGain",
-        "absenceProb",
-        "replicates",
-        "numCycles",
+        "environment.newTaskRate",
+        "team.size",
+        "team.numTaskTypes",
+        "environment.avgTaskValue",
+        "environment.avgInfoTime",
+        "environment.avgImplTime",
+        "behavior.askProbability",
+        "behavior.askMinimumGain",
+        "behavior.absenceProbability",
+        "simulation.replicates",
+        "simulation.numCycles",
 
         // outputs
         "totalValue",
@@ -208,23 +211,23 @@ function main() {
       const totalValue = numOrZero(stats.totalValue);
       const tasksCompleted = numOrZero(stats.totalTasksCompleted);
 
-      const valuePerCycle = totalValue / (cfg.numCycles || 1);
+      const valuePerCycle = totalValue / (cfg.simulation?.numCycles || 1);
       const valuePerTask = totalValue / (tasksCompleted || 1);
 
       const row = [
         ...unitVarNames.map((n) => unitVars[n]),
 
-        cfg.envTaskRate,
-        cfg.numWorkers,
-        cfg.numTaskTypes,
-        cfg.avgInfoTime,
-        cfg.avgImplTime,
-        cfg.avgValue,
-        cfg.askProb,
-        cfg.askMinGain ?? 0,
-        cfg.absenceProb,
-        cfg.replicates ?? 20,
-        cfg.numCycles,
+        cfg.environment?.newTaskRate,
+        cfg.team?.size,
+        cfg.team?.numTaskTypes,
+        cfg.environment?.avgTaskValue,
+        cfg.environment?.avgInfoTime,
+        cfg.environment?.avgImplTime,
+        cfg.behavior?.askProbability,
+        cfg.behavior?.askMinimumGain ?? 0,
+        cfg.behavior?.absenceProbability,
+        cfg.simulation?.replicates ?? 20,
+        cfg.simulation?.numCycles,
 
         totalValue,
         tasksCompleted,
@@ -289,15 +292,15 @@ function main() {
       const totalValue = numOrZero(stats.totalValue);
       const tasksCompleted = numOrZero(stats.totalTasksCompleted);
 
-      const valuePerCycle = totalValue / (cfg.numCycles || 1);
+      const valuePerCycle = totalValue / (cfg.simulation?.numCycles || 1);
       const valuePerTask = totalValue / (tasksCompleted || 1);
 
       const row = [
         ...varNames.map((name) => cfg[name]),
         totalValue,
         tasksCompleted,
-        cfg.numCycles,
-        cfg.replicates ?? 20,
+        cfg.simulation?.numCycles,
+        cfg.simulation?.replicates ?? 20,
         valuePerCycle.toFixed(6),
         valuePerTask.toFixed(6),
         numOrZero(stats.totalConversationCycles),
@@ -320,5 +323,3 @@ function main() {
 }
 
 main();
-
-

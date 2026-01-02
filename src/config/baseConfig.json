@@ -1,43 +1,57 @@
 {
-  "numWorkers": 4,
-  "numTaskTypes": 5,
-
-  "avgInfoTime": 20,
-  "avgImplTime": 20,
-  "avgValue": 10,
-
-  "askProb": 0.5,
-  "askMinGain": 0.05,
-  "absenceProb": 0.05,
-  "turnoverProb": 0.02,
-  "turnoverHireLag": 5,
-  "turnoverHireAvgFactor": 0.8,
-  "turnoverHireMode": "average",
-  "turnoverSpecialistBoost": 0.25,
-
-  "numCycles": 10000,
-  "burnInCycles": 2000,
-  "logEvery": 1000000,
-
-  "backlogSize": 50,
-  "maxBacklogSize": 200,
-
-  "poWindowSize": 10,
-  "poActionsPerCycle": 1,
-  "poAbsenceProb": 0.0,
-  "poErrorProb": 0.3,
-
-  "taskRetentionMin": 0.3,
-  "taskRetentionMax": 0.7,
-
-  "envTaskRate": 2,
-
-  "knowledgeDecayRate": 0.03,
-  "completionLearningRate": 0.15,
-
-  "conversationLearningRate": 0.1,
-  "beliefUpdateRate": 0.2,
-
-  "beliefInitMax": 0.1,
-  "replicates": 20
+  "backlog": {
+    "initialSize": 50,
+    "maxSize": 200
+  },
+  "environment": {
+    "newTaskRate": 2,
+    "avgTaskValue": 10,
+    "avgInfoTime": 50,
+    "avgImplTime": 50,
+    "retentionMin": 0.3,
+    "retentionMax": 0.7
+  },
+  "team": {
+    "size": 4,
+    "numTaskTypes": 5
+  },
+  "behavior": {
+    "askProbability": 0.5,
+    "askMinimumGain": 0,
+    "askMustThreshold": 0.1,
+    "absenceProbability": 0.05,
+    "forgetfulness": 0.03,
+    "completionLearningRate": 0.15,
+    "conversationLearningRate": 0.1
+  },
+  "productOwner": {
+    "windowSize": 10,
+    "actionsPerCycle": 1,
+    "absenceProbability": 0.0,
+    "errorProbability": 0.3
+  },
+  "turnover": {
+    "probability": 0.02,
+    "hireAvgFactor": 0.8,
+    "hireMode": "average",
+    "specialistBoost": 0.25,
+    "candidateSkillMin": 0.05,
+    "candidateSkillMax": 0.95,
+    "candidateInterarrivalMean": 5,
+    "interviewCostPerCycle": 0.5,
+    "assessmentNoise": 0.1,
+    "minHireBar": 0.5,
+    "interviewRounds": 1,
+    "hireSkillExponent": 1.5
+  },
+  "belief": {
+    "updateRate": 0.2,
+    "initMax": 0.1
+  },
+  "simulation": {
+    "numCycles": 10000,
+    "burnInCycles": 2000,
+    "logEvery": 1000000,
+    "replicates": 20
+  }
 }

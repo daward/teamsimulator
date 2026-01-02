@@ -35,7 +35,7 @@ export function expandSweepValues(paramName, valuesText, presetGroups) {
 
   // Enumerated fields that should sweep all options with "*"
   if (parts.length === 1 && parts[0] === "*") {
-    if (paramName === "turnoverHireMode") {
+    if (paramName === "turnoverHireMode" || paramName === "turnover.hireMode") {
       return ["average", "specialist"];
     }
   }

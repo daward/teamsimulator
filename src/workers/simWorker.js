@@ -21,14 +21,39 @@ function applySinglePresetValue(baseConfig, selections, presetParam, presetId) {
   return applyPresetGroups(baseConfig, nextSelections);
 }
 
+function setNested(cfg, path, value) {
+  if (!Array.isArray(path)) path = String(path || "").split(".");
+  let cur = cfg;
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i];
+    if (!cur[key] || typeof cur[key] !== "object") cur[key] = {};
+    cur = cur[key];
+  }
+  cur[path[path.length - 1]] = value;
+}
+
+function getNested(cfg, path) {
+  if (!Array.isArray(path)) path = String(path || "").split(".");
+  let cur = cfg;
+  for (const key of path) {
+    if (cur && typeof cur === "object" && key in cur) {
+      cur = cur[key];
+    } else {
+      return undefined;
+    }
+  }
+  return cur;
+}
+
 function makeConfigForPoint({ baseConfig, presetSelections, paramName, value }) {
   if (paramName.startsWith("preset:")) {
     return applySinglePresetValue(baseConfig, presetSelections, paramName, String(value));
   }
 
-  const out = { ...baseConfig };
+  const out = JSON.parse(JSON.stringify(baseConfig));
   const num = Number(value);
-  out[paramName] = Number.isFinite(num) && String(value).trim() !== "" ? num : value;
+  const v = Number.isFinite(num) && String(value).trim() !== "" ? num : value;
+  setNested(out, paramName, v);
   return out;
 }
 
@@ -39,41 +64,21 @@ function isFiniteNumber(v) {
 }
 
 function buildCfgSnapshot(cfg, unitMappings) {
-  // include all mapping targets (so cfg:* axes work)
-  const targets = Array.from(
-    new Set(
-      Object.values(unitMappings || {})
-        .map((d) => d?.target)
-        .filter(Boolean)
-    )
-  );
-
   const snap = {};
-  for (const t of targets) {
-    const v = cfg?.[t];
-    if (isFiniteNumber(v)) snap[t] = v;
-  }
 
-  // also include some common numeric cfg knobs you may want on axes
-  // (harmless if missing)
-  const extras = [
-    "numCycles",
-    "burnInCycles",
-    "poErrorProb",
-    "poWindowSize",
-    "poActionsPerCycle",
-    "maxBacklogSize",
-    "backlogSize",
-    "askMinGain",
-    "askProb",
-    "completionLearningRate",
-    "conversationLearningRate",
-  ];
-  for (const k of extras) {
-    const v = cfg?.[k];
-    if (isFiniteNumber(v)) snap[k] = v;
-  }
+  const addNumericLeaves = (obj, prefix = []) => {
+    if (!obj || typeof obj !== "object") return;
+    for (const [k, v] of Object.entries(obj)) {
+      const path = [...prefix, k];
+      if (isFiniteNumber(v)) {
+        snap[path.join(".")] = v;
+      } else if (v && typeof v === "object" && !Array.isArray(v)) {
+        addNumericLeaves(v, path);
+      }
+    }
+  };
 
+  addNumericLeaves(cfg || {});
   return snap;
 }
 
@@ -103,7 +108,7 @@ self.onmessage = async (evt) => {
 
         const sim = runSimulation(cfg);
         results.push({
-          x: cfg[paramName] ?? v,
+          x: getNested(cfg, paramName) ?? v,
           stats: deepClone(sim.stats ?? {}),
         });
       }
@@ -155,8 +160,8 @@ self.onmessage = async (evt) => {
           const sim = runSimulation(cfg);
 
           results.push({
-            x: cfg[xParam] ?? x,
-            series: cfg[seriesParam] ?? s,
+            x: getNested(cfg, xParam) ?? x,
+            series: getNested(cfg, seriesParam) ?? s,
             stats: deepClone(sim.stats ?? {}),
           });
 
